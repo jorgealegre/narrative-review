@@ -61,6 +61,19 @@ export interface CoverageResult {
   isComplete: boolean;
 }
 
+export type ModelId =
+  | "claude-sonnet-4-20250514"
+  | "claude-opus-4-20250514"
+  | "claude-3-5-haiku-20241022";
+
+export interface AnalysisMetrics {
+  model: ModelId;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  durationMs: number;
+}
+
 export interface NarrativeReview {
   prInfo: PRInfo;
   title: string;
@@ -68,6 +81,7 @@ export interface NarrativeReview {
   rootCause: string;
   chapters: Chapter[];
   coverage: CoverageResult;
+  metrics?: AnalysisMetrics;
   analyzedAt: string;
 }
 

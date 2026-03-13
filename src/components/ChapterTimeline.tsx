@@ -1,7 +1,7 @@
 "use client";
 
 import { Chapter } from "@/lib/types";
-import { CheckCircle2, Circle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, AlertTriangle, FileCode } from "lucide-react";
 
 interface ChapterTimelineProps {
   chapters: Chapter[];
@@ -17,52 +17,79 @@ export function ChapterTimeline({
   onSelectChapter,
 }: ChapterTimelineProps) {
   return (
-    <nav className="space-y-1">
-      {chapters.map((chapter, i) => {
-        const isActive = chapter.id === activeChapterId;
-        const reviewed = isChapterReviewed(chapter.id);
-        const isUncategorized = chapter.id === "uncategorized";
+    <nav className="relative">
+      {/* Connecting line */}
+      <div className="absolute left-[21px] top-4 bottom-4 w-px bg-zinc-800" />
 
-        return (
-          <button
-            key={chapter.id}
-            onClick={() => onSelectChapter(chapter.id)}
-            className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-all text-sm ${
-              isActive
-                ? "bg-zinc-800/80 text-zinc-100"
-                : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-300"
-            }`}
-          >
-            <div className="flex-shrink-0 mt-0.5">
-              {reviewed ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-              ) : isUncategorized ? (
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Circle className="w-4 h-4 text-zinc-600" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-mono ${
-                    isUncategorized ? "text-amber-500" : "text-zinc-500"
-                  }`}
-                >
-                  {isUncategorized ? "!" : i + 1}
-                </span>
-                <span className="truncate font-medium">{chapter.title}</span>
+      <div className="space-y-0.5 relative">
+        {chapters.map((chapter, i) => {
+          const isActive = chapter.id === activeChapterId;
+          const reviewed = isChapterReviewed(chapter.id);
+          const isUncategorized = chapter.id === "uncategorized";
+          const uniqueFiles = [...new Set(chapter.hunks.map((h) => h.file))];
+          const narrativePreview = chapter.narrative.slice(0, 80);
+
+          return (
+            <button
+              key={chapter.id}
+              onClick={() => onSelectChapter(chapter.id)}
+              className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg text-left transition-all text-sm relative ${
+                isActive
+                  ? "bg-zinc-800/80 text-zinc-100"
+                  : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-300"
+              }`}
+            >
+              <div className="flex-shrink-0 mt-0.5 z-10 bg-zinc-950 rounded-full">
+                {reviewed ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : isUncategorized ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                ) : isActive ? (
+                  <Circle className="w-4 h-4 text-indigo-400 fill-indigo-400/20" />
+                ) : (
+                  <Circle className="w-4 h-4 text-zinc-600" />
+                )}
               </div>
-              <span className="text-xs text-zinc-600 mt-0.5 block">
-                {chapter.hunks.length} change{chapter.hunks.length !== 1 ? "s" : ""}
-                {" · "}
-                {new Set(chapter.hunks.map((h) => h.file)).size} file
-                {new Set(chapter.hunks.map((h) => h.file)).size !== 1 ? "s" : ""}
-              </span>
-            </div>
-          </button>
-        );
-      })}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span
+                    className={`text-xs font-mono flex-shrink-0 ${
+                      isUncategorized ? "text-amber-500" : "text-zinc-500"
+                    }`}
+                  >
+                    {isUncategorized ? "!" : i + 1}
+                  </span>
+                  <span className="font-medium leading-tight line-clamp-2">
+                    {chapter.title}
+                  </span>
+                </div>
+                {/* Narrative preview */}
+                <p className="text-xs text-zinc-600 leading-relaxed mt-1 line-clamp-2">
+                  {narrativePreview}
+                  {chapter.narrative.length > 80 ? "..." : ""}
+                </p>
+                {/* File badges */}
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {uniqueFiles.slice(0, 3).map((f) => (
+                    <span
+                      key={f}
+                      className="inline-flex items-center gap-1 text-[10px] bg-zinc-800/60 text-zinc-500 rounded px-1.5 py-0.5"
+                    >
+                      <FileCode className="w-2.5 h-2.5" />
+                      {f.split("/").pop()}
+                    </span>
+                  ))}
+                  {uniqueFiles.length > 3 && (
+                    <span className="text-[10px] text-zinc-600 px-1 py-0.5">
+                      +{uniqueFiles.length - 3}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }

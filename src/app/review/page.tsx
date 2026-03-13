@@ -38,6 +38,8 @@ function ReviewContent() {
   const [status, setStatus] = useState("Preparing...");
   const [fromCache, setFromCache] = useState(false);
 
+  const modelParam = searchParams.get("model") || undefined;
+
   const analyze = useCallback(
     async (skipCache = false) => {
       if (!prUrl) return;
@@ -60,7 +62,7 @@ function ReviewContent() {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: prUrl }),
+          body: JSON.stringify({ url: prUrl, model: modelParam }),
         });
 
         if (!res.ok) {

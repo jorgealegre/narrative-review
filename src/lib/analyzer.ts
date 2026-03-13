@@ -1,7 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ParsedDiff, Chapter, ChapterHunk } from "./types";
+import { ParsedDiff, Chapter, ChapterHunk, ModelId, AnalysisMetrics } from "./types";
 
 const client = new Anthropic();
+
+const MODEL_PRICING: Record<ModelId, { input: number; output: number }> = {
+  "claude-3-5-haiku-20241022": { input: 0.80, output: 4.0 },
+  "claude-sonnet-4-20250514": { input: 3.0, output: 15.0 },
+  "claude-opus-4-20250514": { input: 15.0, output: 75.0 },
+};
 
 function buildFileManifest(diff: ParsedDiff): string {
   return diff.files
@@ -76,11 +82,23 @@ Return valid JSON (no markdown fences) matching this structure:
   ]
 }`;
 
+interface AnalyzeOptions {
+  model?: ModelId;
+}
+
 export async function analyzeNarrative(
   diff: ParsedDiff,
   prTitle: string,
-  prBody: string
-): Promise<{ title: string; summary: string; rootCause: string; chapters: Chapter[] }> {
+  prBody: string,
+  options: AnalyzeOptions = {}
+): Promise<{
+  title: string;
+  summary: string;
+  rootCause: string;
+  chapters: Chapter[];
+  metrics: AnalysisMetrics;
+}> {
+  const model = options.model || "claude-sonnet-4-20250514";
   const manifest = buildFileManifest(diff);
   const hunks = buildHunkReference(diff);
 
@@ -96,15 +114,31 @@ ${hunks}
 
 Analyze this diff and return the narrative JSON.`;
 
+  const startTime = Date.now();
+
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model,
     max_tokens: 16000,
-    system: SYSTEM_PROMPT,
+    system: [
+      {
+        type: "text",
+        text: SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [{ role: "user", content: userPrompt }],
   });
 
+  const durationMs = Date.now() - startTime;
+
   const text =
     response.content[0].type === "text" ? response.content[0].text : "";
+
+  const pricing = MODEL_PRICING[model];
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const cost =
+    (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
 
   const parsed = JSON.parse(text);
 
@@ -129,7 +163,9 @@ Analyze this diff and return the narrative JSON.`;
           return {
             file: h.file,
             hunkIndex: h.hunkIndex,
-            diffContent: hunk?.rawContent || `[hunk not found: ${h.file}#${h.hunkIndex}]`,
+            diffContent:
+              hunk?.rawContent ||
+              `[hunk not found: ${h.file}#${h.hunkIndex}]`,
             annotation: h.annotation,
           };
         }
@@ -142,5 +178,6 @@ Analyze this diff and return the narrative JSON.`;
     summary: parsed.summary,
     rootCause: parsed.rootCause,
     chapters,
+    metrics: { model, inputTokens, outputTokens, cost, durationMs },
   };
 }

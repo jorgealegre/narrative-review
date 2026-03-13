@@ -2,10 +2,36 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, GitPullRequest, ArrowRight } from "lucide-react";
+import { BookOpen, GitPullRequest, ArrowRight, Zap, Brain, Sparkles } from "lucide-react";
+import { ModelId } from "@/lib/types";
+
+const MODELS: { id: ModelId; name: string; desc: string; icon: typeof Zap; cost: string }[] = [
+  {
+    id: "claude-3-5-haiku-20241022",
+    name: "Haiku",
+    desc: "Fast & cheap",
+    icon: Zap,
+    cost: "~$0.01",
+  },
+  {
+    id: "claude-sonnet-4-20250514",
+    name: "Sonnet",
+    desc: "Balanced",
+    icon: Sparkles,
+    cost: "~$0.10",
+  },
+  {
+    id: "claude-opus-4-20250514",
+    name: "Opus",
+    desc: "Deepest analysis",
+    icon: Brain,
+    cost: "~$0.50",
+  },
+];
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [model, setModel] = useState<ModelId>("claude-sonnet-4-20250514");
   const [error, setError] = useState("");
   const router = useRouter();
 
@@ -19,7 +45,9 @@ export default function Home() {
       return;
     }
 
-    router.push(`/review?pr=${encodeURIComponent(url)}`);
+    router.push(
+      `/review?pr=${encodeURIComponent(url)}&model=${encodeURIComponent(model)}`
+    );
   };
 
   return (
@@ -57,6 +85,35 @@ export default function Home() {
                 autoFocus
               />
             </div>
+
+            {/* Model selector */}
+            <div className="flex gap-2">
+              {MODELS.map((m) => {
+                const Icon = m.icon;
+                const selected = model === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setModel(m.id)}
+                    className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                      selected
+                        ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-300"
+                        : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <div className="font-medium">{m.name}</div>
+                      <div className="text-xs opacity-60">
+                        {m.desc} &middot; {m.cost}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
             {error && <p className="text-red-400 text-sm px-1">{error}</p>}
             <button
               type="submit"

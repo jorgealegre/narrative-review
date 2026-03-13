@@ -12,7 +12,7 @@ export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json();
+    const { url, model } = await request.json();
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "Missing PR URL" }, { status: 400 });
     }
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const diff = parseDiff(rawDiff);
 
     // Send to Claude for narrative analysis
-    const analysis = await analyzeNarrative(diff, prInfo.title, prInfo.body);
+    const analysis = await analyzeNarrative(diff, prInfo.title, prInfo.body, { model });
 
     // Verify coverage deterministically
     const coverage = verifyCoverage(diff, analysis.chapters);
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       rootCause: analysis.rootCause,
       chapters,
       coverage,
+      metrics: analysis.metrics,
       analyzedAt: new Date().toISOString(),
     };
 

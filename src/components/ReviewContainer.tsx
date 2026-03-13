@@ -34,6 +34,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
     "idle" | "loading" | "approved" | "changes-requested" | "error"
   >("idle");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const allReviewed =
     reviewedCount === review.chapters.length && review.chapters.length > 0;
 
@@ -142,18 +143,39 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
         reviewedCount={reviewedCount}
         totalChapters={review.chapters.length}
         coverage={review.coverage}
+        metrics={review.metrics}
         prTitle={review.title}
         prUrl={prUrl}
       />
 
       <div className="flex">
+        {/* Sidebar toggle */}
+        <button
+          onClick={() => setSidebarCollapsed((s) => !s)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-30 bg-zinc-900 border border-zinc-700 rounded-r-lg px-1 py-3 text-zinc-400 hover:text-zinc-200 transition-colors"
+          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+        >
+          <svg
+            className={`w-4 h-4 transition-transform ${sidebarCollapsed ? "" : "rotate-180"}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
         {/* Sidebar */}
-        <aside className="w-72 flex-shrink-0 border-r border-zinc-800 sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto p-4">
+        <aside
+          className={`flex-shrink-0 border-r border-zinc-800 sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto p-4 transition-all duration-300 ${
+            sidebarCollapsed ? "w-0 p-0 overflow-hidden border-r-0" : "w-80"
+          }`}
+        >
           <div className="mb-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">
               Story
             </p>
-            <p className="text-xs text-zinc-600">{review.summary}</p>
+            <p className="text-xs text-zinc-600 leading-relaxed">{review.summary}</p>
           </div>
           <ChapterTimeline
             chapters={review.chapters}
