@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { NarrativeReview } from "@/lib/types";
 import { ReviewContainer } from "@/components/ReviewContainer";
+import { useFancyMode } from "@/hooks/useFancyMode";
 import { Loader2 } from "lucide-react";
 
 function cacheKey(identifier: string) {
@@ -30,6 +31,7 @@ function setCachedAnalysis(identifier: string, review: NarrativeReview) {
 }
 
 function ReviewContent() {
+  const { fancy } = useFancyMode();
   const searchParams = useSearchParams();
   const source = searchParams.get("source"); // "local" or null (PR)
   const prUrl = searchParams.get("pr");
@@ -139,10 +141,18 @@ function ReviewContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-zinc-300 text-lg font-medium">{status}</p>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center relative">
+        {fancy && (
+          <>
+            <div className="fancy-aurora" />
+            <div className="fancy-grid" />
+          </>
+        )}
+        <div className="text-center relative z-10">
+          <Loader2 className={`w-8 h-8 animate-spin mx-auto mb-4 ${fancy ? "text-indigo-400" : "text-indigo-500"}`} />
+          <p className={`text-lg font-medium ${fancy ? "fancy-gradient-text" : "text-zinc-300"}`}>
+            {status}
+          </p>
           <p className="text-zinc-500 text-sm mt-2">
             {isLocal
               ? "Diffing your local branches and building the narrative..."

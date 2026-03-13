@@ -3,6 +3,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
 import { useReviewState } from "@/hooks/useReviewState";
+import { useFancyMode } from "@/hooks/useFancyMode";
 import { ChapterCard } from "./ChapterCard";
 import { ChapterTimeline } from "./ChapterTimeline";
 import { ProgressTracker } from "./ProgressTracker";
@@ -30,6 +31,7 @@ interface ReviewContainerProps {
 }
 
 export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContainerProps) {
+  const { fancy } = useFancyMode();
   const isLocal = review.prInfo.number === 0;
   const prId = isLocal
     ? `local:${review.prInfo.repo}:${review.prInfo.baseRef}:${review.prInfo.headRef}`
@@ -173,7 +175,14 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative">
+      {fancy && (
+        <>
+          <div className="fancy-aurora" />
+          <div className="fancy-grid" />
+        </>
+      )}
+
       <ProgressTracker
         reviewedCount={reviewedCount}
         totalChapters={review.chapters.length}
@@ -332,7 +341,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
         {/* Main content */}
         <main className="flex-1 min-w-0 px-6 py-8 max-w-5xl">
           {/* Summary card */}
-          <div className="mb-8 p-5 rounded-xl bg-zinc-900/50 border border-zinc-800">
+          <div className={`mb-8 p-5 rounded-xl ${
+            fancy
+              ? "fancy-glass fancy-border-glow"
+              : "bg-zinc-900/50 border border-zinc-800"
+          }`}>
             <div className="flex items-start gap-3 mb-3">
               <div className="w-2 h-2 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
               <div>

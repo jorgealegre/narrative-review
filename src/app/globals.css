@@ -9,12 +9,10 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* Smooth scrolling for chapter navigation */
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar for sidebar */
 aside::-webkit-scrollbar {
   width: 4px;
 }
@@ -28,16 +26,11 @@ aside::-webkit-scrollbar-thumb {
   border-radius: 2px;
 }
 
-/* Entrance animations */
+/* ── Base entrance animations ─────────────────────────────────── */
+
 @keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fade-in {
@@ -81,4 +74,162 @@ aside::-webkit-scrollbar-thumb {
 
 .animate-confetti {
   animation: confetti-fall 1.2s ease-out both;
+}
+
+/* ── Fancy mode: aurora background ────────────────────────────── */
+
+@keyframes aurora {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.fancy-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 60% at 20% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 80% at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
+              radial-gradient(ellipse 50% 40% at 50% 0%, rgba(59, 130, 246, 0.06) 0%, transparent 50%);
+  background-size: 200% 200%;
+  animation: aurora 20s ease-in-out infinite;
+}
+
+/* ── Fancy mode: grid overlay ─────────────────────────────────── */
+
+.fancy-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 50% at 50% 50%, black 0%, transparent 100%);
+}
+
+/* ── Fancy mode: glow utilities ───────────────────────────────── */
+
+.fancy-glow-indigo {
+  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.3),
+              0 0 80px -20px rgba(99, 102, 241, 0.15);
+}
+
+.fancy-glow-text {
+  text-shadow: 0 0 30px rgba(99, 102, 241, 0.4),
+               0 0 60px rgba(99, 102, 241, 0.15);
+}
+
+.fancy-border-glow {
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 20px -5px rgba(99, 102, 241, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ── Fancy mode: gradient text ────────────────────────────────── */
+
+.fancy-gradient-text {
+  background: linear-gradient(135deg, #c7d2fe 0%, #818cf8 40%, #a78bfa 70%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Fancy mode: floating pulse on hero icon ──────────────────── */
+
+@keyframes float-pulse {
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.4)); }
+  50% { transform: translateY(-6px) scale(1.05); filter: drop-shadow(0 0 24px rgba(99, 102, 241, 0.6)); }
+}
+
+.fancy-float {
+  animation: float-pulse 4s ease-in-out infinite;
+}
+
+/* ── Fancy mode: shimmer border for CTA ───────────────────────── */
+
+@keyframes shimmer-border {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.fancy-shimmer-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #7c3aed 100%);
+}
+
+.fancy-shimmer-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer-border 3s ease-in-out infinite;
+}
+
+/* ── Fancy mode: glassmorphism card ───────────────────────────── */
+
+.fancy-glass {
+  background: rgba(24, 24, 27, 0.6);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+/* ── Fancy mode: subtle scanline effect ───────────────────────── */
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.fancy-scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.15) 50%, transparent 100%);
+  animation: scanline 8s linear infinite;
+}
+
+/* ── Fancy mode: stagger entrance for landing steps ───────────── */
+
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fancy-stagger > * {
+  animation: slide-up-fade 0.5s ease-out both;
+}
+
+.fancy-stagger > *:nth-child(1) { animation-delay: 0.1s; }
+.fancy-stagger > *:nth-child(2) { animation-delay: 0.2s; }
+.fancy-stagger > *:nth-child(3) { animation-delay: 0.3s; }
+
+/* ── Fancy mode: chapter card glow on hover ───────────────────── */
+
+.fancy-chapter-card {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.fancy-chapter-card:hover {
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 30px -8px rgba(99, 102, 241, 0.15),
+              0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Fancy mode: review progress bar glow ─────────────────────── */
+
+.fancy-progress-glow {
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
 }

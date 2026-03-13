@@ -12,6 +12,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { useFancyMode } from "@/hooks/useFancyMode";
 
 interface ChapterCardProps {
   chapter: Chapter;
@@ -38,6 +39,7 @@ export function ChapterCard({
   diffSettings,
   onAskAbout,
 }: ChapterCardProps) {
+  const { fancy } = useFancyMode();
   const [expanded, setExpanded] = useState(true);
   const isUncategorized = chapter.id === "uncategorized";
 
@@ -45,9 +47,15 @@ export function ChapterCard({
     <div
       id={`chapter-${chapter.id}`}
       className={`rounded-xl border transition-all duration-200 animate-fade-in-up ${
+        fancy ? "fancy-chapter-card" : ""
+      } ${
         isActive
-          ? "border-indigo-500/50 shadow-lg shadow-indigo-500/10"
-          : "border-zinc-800"
+          ? fancy
+            ? "border-indigo-500/40 shadow-lg shadow-indigo-500/10 bg-zinc-900/30"
+            : "border-indigo-500/50 shadow-lg shadow-indigo-500/10"
+          : fancy
+            ? "border-zinc-800/60 bg-zinc-950/50"
+            : "border-zinc-800"
       } ${isUncategorized ? "border-amber-500/30" : ""} ${
         isReviewed ? "opacity-75" : ""
       }`}
