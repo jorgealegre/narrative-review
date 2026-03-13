@@ -33,25 +33,25 @@ const MODELS: {
   cost: string;
 }[] = [
   {
-    id: "claude-3-5-haiku-20241022",
-    name: "Haiku",
+    id: "claude-haiku-4-5-20251001",
+    name: "Haiku 4.5",
     desc: "Fast & cheap",
     icon: Zap,
-    cost: "~$0.01",
+    cost: "~$0.02",
   },
   {
-    id: "claude-sonnet-4-20250514",
-    name: "Sonnet",
+    id: "claude-sonnet-4-6",
+    name: "Sonnet 4.6",
     desc: "Balanced",
     icon: Sparkles,
     cost: "~$0.10",
   },
   {
-    id: "claude-opus-4-20250514",
-    name: "Opus",
+    id: "claude-opus-4-6",
+    name: "Opus 4.6",
     desc: "Deepest analysis",
     icon: Brain,
-    cost: "~$0.50",
+    cost: "~$0.20",
   },
 ];
 
@@ -65,7 +65,7 @@ export default function Home() {
   const [branches, setBranches] = useState<string[]>([]);
   const [currentBranch, setCurrentBranch] = useState("");
   const [loadingBranches, setLoadingBranches] = useState(false);
-  const [model, setModel] = useState<ModelId>("claude-sonnet-4-20250514");
+  const [model, setModel] = useState<ModelId>("claude-sonnet-4-6");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const router = useRouter();

@@ -27,55 +27,126 @@ function parseHunkHeader(headerLine: string): { oldStart: number; newStart: numb
   return { oldStart: parseInt(match[1], 10), newStart: parseInt(match[2], 10) };
 }
 
-function isWhitespaceOnly(line: string): boolean {
-  const content = line.slice(1); // strip the +/- prefix
-  return content.trim().length === 0;
+interface WsAnalysis {
+  hidden: Set<number>;
+  demoted: Set<number>;
+  removeToAdd: Map<number, number>;
+  addToRemove: Map<number, number>;
 }
 
 /**
- * Detects pairs of adjacent remove/add lines that differ only in whitespace.
- * Returns a Set of indices that should be hidden.
+ * Analyzes remove/add blocks for whitespace-only changes and produces a
+ * reordered display list that interleaves lines like GitHub does.
+ *
+ * For each change block, walks the old-file lines as the "spine":
+ *  - Unmatched removes stay as red deletions
+ *  - Matched (ws-only) removes are replaced by their add counterpart shown as context
+ *  - Unmatched adds are inserted at the position of the first matched add that follows
  */
-function findWhitespaceOnlyChanges(lines: string[]): Set<number> {
+function analyzeWhitespaceChanges(lines: string[]): WsAnalysis {
   const hidden = new Set<number>();
+  const demoted = new Set<number>();
+  const removeToAdd = new Map<number, number>();
+  const addToRemove = new Map<number, number>();
   let i = 0;
+
   while (i < lines.length) {
     const type = classifyLine(lines[i]);
+
     if (type === "remove") {
-      // Collect consecutive removes
       const removeStart = i;
       while (i < lines.length && classifyLine(lines[i]) === "remove") i++;
-      // Collect consecutive adds
       const addStart = i;
       while (i < lines.length && classifyLine(lines[i]) === "add") i++;
-      const removeEnd = addStart;
       const addEnd = i;
 
-      const removeCount = removeEnd - removeStart;
-      const addCount = addEnd - addStart;
-
-      if (removeCount === addCount && removeCount > 0) {
-        let allWhitespace = true;
-        for (let j = 0; j < removeCount; j++) {
-          const oldContent = lines[removeStart + j].slice(1);
-          const newContent = lines[addStart + j].slice(1);
-          if (oldContent.trim() !== newContent.trim()) {
-            allWhitespace = false;
+      const addUsed = new Set<number>();
+      for (let r = removeStart; r < addStart; r++) {
+        const rTrimmed = lines[r].slice(1).trim();
+        if (rTrimmed === "") { hidden.add(r); continue; }
+        for (let a = addStart; a < addEnd; a++) {
+          if (addUsed.has(a)) continue;
+          if (lines[a].slice(1).trim() === rTrimmed) {
+            hidden.add(r);
+            demoted.add(a);
+            removeToAdd.set(r, a);
+            addToRemove.set(a, r);
+            addUsed.add(a);
             break;
           }
         }
-        if (allWhitespace) {
-          for (let j = removeStart; j < addEnd; j++) hidden.add(j);
+      }
+      for (let a = addStart; a < addEnd; a++) {
+        if (!addUsed.has(a) && lines[a].slice(1).trim() === "") {
+          hidden.add(a);
         }
       }
-    } else if (type === "add" && isWhitespaceOnly(lines[i])) {
+    } else if (type === "add" && lines[i].slice(1).trim() === "") {
       hidden.add(i);
       i++;
     } else {
       i++;
     }
   }
-  return hidden;
+  return { hidden, demoted, removeToAdd, addToRemove };
+}
+
+/**
+ * Produces a reordered index array that interleaves removes/adds within change
+ * blocks so that whitespace-only matched pairs appear as context at their
+ * logical position (matching GitHub's "Hide whitespace" behavior).
+ */
+function buildWhitespaceAwareOrder(lines: string[], ws: WsAnalysis): number[] {
+  const order: number[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const type = classifyLine(lines[i]);
+
+    if (type !== "remove") {
+      if (!ws.hidden.has(i)) order.push(i);
+      i++;
+      continue;
+    }
+
+    // Collect the full change block
+    const removeStart = i;
+    while (i < lines.length && classifyLine(lines[i]) === "remove") i++;
+    const addStart = i;
+    while (i < lines.length && classifyLine(lines[i]) === "add") i++;
+    const addEnd = i;
+
+    // Walk removes as the spine, inserting unmatched adds at the right spots
+    const addEmitted = new Set<number>();
+
+    for (let r = removeStart; r < addStart; r++) {
+      if (ws.hidden.has(r) && ws.removeToAdd.has(r)) {
+        const matchedAdd = ws.removeToAdd.get(r)!;
+        // Emit any unmatched adds that precede this matched add
+        for (let a = addStart; a < matchedAdd; a++) {
+          if (addEmitted.has(a) || ws.hidden.has(a)) continue;
+          order.push(a);
+          addEmitted.add(a);
+        }
+        if (!addEmitted.has(matchedAdd)) {
+          order.push(matchedAdd);
+          addEmitted.add(matchedAdd);
+        }
+      } else if (!ws.hidden.has(r)) {
+        order.push(r);
+      }
+    }
+
+    // Emit remaining adds
+    for (let a = addStart; a < addEnd; a++) {
+      if (!addEmitted.has(a) && !ws.hidden.has(a)) {
+        order.push(a);
+        addEmitted.add(a);
+      }
+    }
+  }
+
+  return order;
 }
 
 interface CommentFormProps {
@@ -146,9 +217,14 @@ function UnifiedDiffLines({
   postedComments: Set<number>;
   handleComment: (body: string) => Promise<void>;
 }) {
-  const whitespaceHidden = useMemo(
-    () => (settings.hideWhitespace ? findWhitespaceOnlyChanges(lines) : new Set<number>()),
-    [lines, settings.hideWhitespace]
+  const emptyWs: WsAnalysis = useMemo(() => ({
+    hidden: new Set<number>(), demoted: new Set<number>(),
+    removeToAdd: new Map(), addToRemove: new Map(),
+  }), []);
+
+  const wsAnalysis = useMemo(
+    () => settings.hideWhitespace ? analyzeWhitespaceChanges(lines) : emptyWs,
+    [lines, settings.hideWhitespace, emptyWs]
   );
 
   const lineNumbers = useMemo(() => {
@@ -182,55 +258,69 @@ function UnifiedDiffLines({
     });
   }, [lines]);
 
-  // In compact mode, collapse runs of context lines to at most 2 at each boundary
   const visibleIndices = useMemo(() => {
-    if (settings.viewMode !== "compact") {
-      return lines.map((_, i) => i).filter((i) => !whitespaceHidden.has(i));
-    }
+    // When hiding whitespace, use the interleaved order
+    const baseOrder = settings.hideWhitespace
+      ? buildWhitespaceAwareOrder(lines, wsAnalysis)
+      : lines.map((_, i) => i).filter((i) => !wsAnalysis.hidden.has(i));
+
+    if (settings.viewMode !== "compact") return baseOrder;
+
+    // In compact mode, collapse runs of context to at most 2 around changes
+    const effectiveType = (idx: number) => {
+      if (wsAnalysis.demoted.has(idx)) return "context";
+      return classifyLine(lines[idx]);
+    };
 
     const contextBoundary = 2;
-    const visible = new Set<number>();
-    const types = lines.map((l) => classifyLine(l));
+    const changePositions = new Set<number>();
+    baseOrder.forEach((idx, pos) => {
+      const et = effectiveType(idx);
+      if (et !== "context" && et !== "header") changePositions.add(pos);
+      if (classifyLine(lines[idx]) === "header") changePositions.add(pos);
+    });
 
-    for (let i = 0; i < lines.length; i++) {
-      if (whitespaceHidden.has(i)) continue;
-      if (types[i] !== "context") {
-        visible.add(i);
-        // include surrounding context
-        for (let j = Math.max(0, i - contextBoundary); j <= Math.min(lines.length - 1, i + contextBoundary); j++) {
-          if (!whitespaceHidden.has(j)) visible.add(j);
-        }
+    return baseOrder.filter((idx, pos) => {
+      if (changePositions.has(pos)) return true;
+      if (classifyLine(lines[idx]) === "header") return true;
+      for (let p = Math.max(0, pos - contextBoundary); p <= Math.min(baseOrder.length - 1, pos + contextBoundary); p++) {
+        if (changePositions.has(p)) return true;
       }
-      if (types[i] === "header") visible.add(i);
-    }
-
-    return Array.from(visible).sort((a, b) => a - b);
-  }, [lines, settings.viewMode, whitespaceHidden]);
-
-  let prevIdx = -1;
+      return false;
+    });
+  }, [lines, settings.viewMode, settings.hideWhitespace, wsAnalysis]);
 
   return (
     <>
-      {visibleIndices.map((i) => {
+      {visibleIndices.map((i, posIdx) => {
         const line = lines[i];
         const type = classifyLine(line);
+        const isDemoted = wsAnalysis.demoted.has(i);
         const nums = lineNumbers[i];
         const newLineNum = nums.new;
         const canComment = prInfo && newLineNum !== null && type !== "header";
         const hasComment = newLineNum !== null && postedComments.has(newLineNum);
 
+        // For demoted lines, also show the old line number from the matched remove
+        const matchedRemoveIdx = isDemoted ? wsAnalysis.addToRemove.get(i) : undefined;
+        const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
+
         let bg = "";
         let textColor = "text-zinc-400";
-        if (type === "add") { bg = "bg-green-950/40"; textColor = "text-green-300"; }
+        if (isDemoted) {
+          // Whitespace-only change — render as context (no bg highlight)
+        } else if (type === "add") { bg = "bg-green-950/40"; textColor = "text-green-300"; }
         else if (type === "remove") { bg = "bg-red-950/40"; textColor = "text-red-300"; }
         else if (type === "header") { bg = "bg-blue-950/30"; textColor = "text-blue-400"; }
 
-        // Show a collapse indicator when indices are non-contiguous
-        const showGap = prevIdx >= 0 && i - prevIdx > 1 && settings.viewMode === "compact";
-        prevIdx = i;
+        const displayLine = isDemoted ? " " + line.slice(1) : line;
+
+        // Gap indicator — detect non-contiguous positions in compact mode
+        const prevI = posIdx > 0 ? visibleIndices[posIdx - 1] : -1;
+        const showGap = posIdx > 0 && i - prevI > 1 && settings.viewMode === "compact";
 
         return (
-          <div key={i}>
+          <div key={`${i}-${posIdx}`}>
             {showGap && (
               <div className="bg-zinc-900/60 text-zinc-600 text-xs text-center py-0.5 border-y border-zinc-800/50 select-none">
                 ⋯
@@ -247,12 +337,12 @@ function UnifiedDiffLines({
               }}
             >
               <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
-                {nums.old ?? ""}
+                {isDemoted ? (demotedOldNum ?? "") : (nums.old ?? "")}
               </span>
               <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
                 {nums.new ?? ""}
               </span>
-              <span className="flex-1">{line || " "}</span>
+              <span className="flex-1">{displayLine || " "}</span>
               {canComment && (
                 <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
                   {hasComment ? (
@@ -287,7 +377,10 @@ interface SplitPair {
   type: "context" | "change" | "header";
 }
 
-function buildSplitPairs(lines: string[], whitespaceHidden: Set<number>): SplitPair[] {
+function buildSplitPairs(
+  lines: string[],
+  wsInfo: { hidden: Set<number>; demoted: Set<number> }
+): SplitPair[] {
   const pairs: SplitPair[] = [];
   let oldNum = 0;
   let newNum = 0;
@@ -306,7 +399,7 @@ function buildSplitPairs(lines: string[], whitespaceHidden: Set<number>): SplitP
     }
 
     if (type === "context") {
-      if (!whitespaceHidden.has(i)) {
+      if (!wsInfo.hidden.has(i)) {
         pairs.push({ oldLine: line, newLine: line, oldNum: oldNum, newNum: newNum, type: "context" });
       }
       oldNum++;
@@ -315,7 +408,6 @@ function buildSplitPairs(lines: string[], whitespaceHidden: Set<number>): SplitP
       continue;
     }
 
-    // Collect consecutive remove/add block
     const removes: { line: string; num: number; idx: number }[] = [];
     const adds: { line: string; num: number; idx: number }[] = [];
 
@@ -335,13 +427,21 @@ function buildSplitPairs(lines: string[], whitespaceHidden: Set<number>): SplitP
       const rm = j < removes.length ? removes[j] : null;
       const ad = j < adds.length ? adds[j] : null;
 
-      // If both sides are hidden as whitespace-only, skip
-      if (rm && ad && whitespaceHidden.has(rm.idx) && whitespaceHidden.has(ad.idx)) continue;
+      // Both hidden: skip entirely
+      if (rm && wsInfo.hidden.has(rm.idx) && ad && wsInfo.hidden.has(ad.idx)) continue;
+      // Remove hidden + add demoted: show as context
+      if (rm && wsInfo.hidden.has(rm.idx) && ad && wsInfo.demoted.has(ad.idx)) {
+        const ctxLine = " " + ad.line.slice(1);
+        pairs.push({ oldLine: ctxLine, newLine: ctxLine, oldNum: rm.num, newNum: ad.num, type: "context" });
+        continue;
+      }
+      // Remove hidden only (unmatched): skip
+      if (rm && wsInfo.hidden.has(rm.idx) && !ad) continue;
 
       pairs.push({
-        oldLine: rm ? rm.line : null,
-        newLine: ad ? ad.line : null,
-        oldNum: rm ? rm.num : null,
+        oldLine: rm && !wsInfo.hidden.has(rm.idx) ? rm.line : null,
+        newLine: ad && !wsInfo.hidden.has(ad.idx) ? ad.line : null,
+        oldNum: rm && !wsInfo.hidden.has(rm.idx) ? rm.num : null,
         newNum: ad ? ad.num : null,
         type: "change",
       });
@@ -357,11 +457,13 @@ function SplitDiffView({
   lines: string[];
   settings: DiffSettings;
 }) {
-  const whitespaceHidden = useMemo(
-    () => (settings.hideWhitespace ? findWhitespaceOnlyChanges(lines) : new Set<number>()),
+  const wsInfo = useMemo(
+    () => settings.hideWhitespace
+      ? analyzeWhitespaceChanges(lines)
+      : { hidden: new Set<number>(), demoted: new Set<number>(), removeToAdd: new Map(), addToRemove: new Map() } as WsAnalysis,
     [lines, settings.hideWhitespace]
   );
-  const pairs = useMemo(() => buildSplitPairs(lines, whitespaceHidden), [lines, whitespaceHidden]);
+  const pairs = useMemo(() => buildSplitPairs(lines, wsInfo), [lines, wsInfo]);
 
   return (
     <div className="grid grid-cols-2 divide-x divide-zinc-800">

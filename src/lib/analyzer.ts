@@ -1,12 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonSchemaOutputFormat } from "@anthropic-ai/sdk/helpers/json-schema";
 import { ParsedDiff, Chapter, ChapterHunk, ModelId, AnalysisMetrics } from "./types";
 
 const client = new Anthropic();
 
 const MODEL_PRICING: Record<ModelId, { input: number; output: number }> = {
-  "claude-3-5-haiku-20241022": { input: 0.80, output: 4.0 },
-  "claude-sonnet-4-20250514": { input: 3.0, output: 15.0 },
-  "claude-opus-4-20250514": { input: 15.0, output: 75.0 },
+  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+  "claude-opus-4-6": { input: 5.0, output: 25.0 },
 };
 
 function buildFileManifest(diff: ParsedDiff): string {
@@ -54,33 +55,43 @@ Given a PR diff, you must:
 - Chapters should be ordered so a reviewer never sees a deletion before understanding why it's being deleted.
 - Keep narrative text concise but informative. Write like a knowledgeable colleague explaining the PR over coffee.
 - If a change is straightforward (e.g., fixing a typo, updating an import), it can be a brief chapter.
-- Group tightly related cross-file changes together rather than showing them separately.
+- Group tightly related cross-file changes together rather than showing them separately.`;
 
-## Output Format
-
-Return valid JSON (no markdown fences) matching this structure:
-
-{
-  "title": "Human-readable PR title",
-  "summary": "2-3 sentence overview of the entire PR",
-  "rootCause": "One sentence describing the fundamental trigger",
-  "chapters": [
-    {
-      "id": "ch-1",
-      "title": "Chapter title",
-      "narrative": "Explanation paragraph",
-      "connectionToPrevious": "How this relates to the previous chapter (omit for first chapter)",
-      "safetyNotes": ["Optional safety annotations for deletions"],
-      "hunks": [
-        {
-          "file": "path/to/file.swift",
-          "hunkIndex": 0,
-          "annotation": "Optional per-hunk note"
-        }
-      ]
-    }
-  ]
-}`;
+const narrativeOutputSchema = {
+  type: "object",
+  properties: {
+    title: { type: "string", description: "Human-readable PR title" },
+    summary: { type: "string", description: "2-3 sentence overview of the entire PR" },
+    rootCause: { type: "string", description: "One sentence describing the fundamental trigger" },
+    chapters: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          narrative: { type: "string" },
+          connectionToPrevious: { type: "string" },
+          safetyNotes: { type: "array", items: { type: "string" } },
+          hunks: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                file: { type: "string" },
+                hunkIndex: { type: "number" },
+                annotation: { type: "string" },
+              },
+              required: ["file", "hunkIndex"],
+            },
+          },
+        },
+        required: ["id", "title", "narrative", "hunks"],
+      },
+    },
+  },
+  required: ["title", "summary", "rootCause", "chapters"],
+} as const;
 
 interface AnalyzeOptions {
   model?: ModelId;
@@ -98,7 +109,7 @@ export async function analyzeNarrative(
   chapters: Chapter[];
   metrics: AnalysisMetrics;
 }> {
-  const model = options.model || "claude-sonnet-4-20250514";
+  const model = options.model || "claude-sonnet-4-6";
   const manifest = buildFileManifest(diff);
   const hunks = buildHunkReference(diff);
 
@@ -127,22 +138,39 @@ Analyze this diff and return the narrative JSON.`;
       },
     ],
     messages: [{ role: "user", content: userPrompt }],
+    output_config: {
+      format: jsonSchemaOutputFormat(narrativeOutputSchema),
+    },
   });
 
   const response = await stream.finalMessage();
-
   const durationMs = Date.now() - startTime;
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+  // SDK structured output: parsed_output is available when using output_config
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let parsed: any = (response as any).parsed_output;
+
+  if (!parsed) {
+    // Fallback: manually extract JSON from text content
+    let text = response.content[0].type === "text" ? response.content[0].text : "";
+    text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const jsonStart = text.indexOf("{");
+      const jsonEnd = text.lastIndexOf("}");
+      if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+        throw new Error("Claude did not return valid JSON. Response starts with: " + text.slice(0, 200));
+      }
+      parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+    }
+  }
 
   const pricing = MODEL_PRICING[model];
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
   const cost =
     (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
-
-  const parsed = JSON.parse(text);
 
   const chapters: Chapter[] = parsed.chapters.map(
     (ch: {

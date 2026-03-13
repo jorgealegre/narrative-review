@@ -9,7 +9,7 @@ export function FancyModeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-full text-xs border transition-all duration-300 group"
+      className="fixed bottom-4 left-4 z-40 flex items-center gap-2 px-3 py-2 rounded-full text-xs border transition-all duration-300 group"
       style={{
         background: fancy
           ? "rgba(99, 102, 241, 0.1)"

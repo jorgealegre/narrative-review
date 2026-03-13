@@ -20,7 +20,7 @@ ${prContext}
 - If asked about safety, consider whether deleted code has other callers, whether the changes are backwards compatible, etc.`;
 
     const stream = await client.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 2000,
       system: systemPrompt,
       messages: messages.map(

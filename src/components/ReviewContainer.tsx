@@ -25,6 +25,8 @@ import {
   Download,
   ChevronsDownUp,
   ChevronsUpDown,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 interface ReviewContainerProps {
@@ -46,14 +48,13 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   const { toggleChapter, isChapterReviewed, reviewedCount, setNote, state: reviewState } =
     useReviewState(prId);
 
-  const [activeChapterId, setActiveChapterId] = useState<string | null>(
-    review.chapters[0]?.id || null
-  );
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [approvalState, setApprovalState] = useState<
     "idle" | "loading" | "approved" | "changes-requested" | "error"
   >("idle");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [overviewActive, setOverviewActive] = useState(true);
   const [walkthroughMode, setWalkthroughMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInitialQuestion, setChatInitialQuestion] = useState<string | undefined>();
@@ -75,6 +76,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   }, [allReviewed]);
 
   const scrollToChapter = useCallback((id: string) => {
+    setOverviewActive(false);
     setActiveChapterId(id);
     const el = document.getElementById(`chapter-${id}`);
     if (el) {
@@ -230,176 +232,227 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
       />
 
       <div className="flex">
-        {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarCollapsed((s) => !s)}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-30 bg-zinc-900 border border-zinc-700 rounded-r-lg px-1 py-3 text-zinc-400 hover:text-zinc-200 transition-colors"
-          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-        >
-          <svg
-            className={`w-4 h-4 transition-transform ${sidebarCollapsed ? "" : "rotate-180"}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-
         {/* Sidebar */}
         <aside
-          className={`flex-shrink-0 border-r border-zinc-800 sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto p-4 transition-all duration-300 ${
-            sidebarCollapsed ? "w-0 p-0 overflow-hidden border-r-0" : "w-80"
+          className={`flex-shrink-0 border-r border-zinc-800 sticky top-[73px] h-[calc(100vh-73px)] transition-[width,opacity] duration-300 ease-in-out ${
+            sidebarCollapsed ? "w-12" : "w-80"
           }`}
         >
-          <div className="mb-4">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">
-              Story
-            </p>
-            <p className="text-xs text-zinc-600 leading-relaxed">{review.summary}</p>
-          </div>
-          <ChapterTimeline
-            chapters={review.chapters}
-            activeChapterId={activeChapterId}
-            isChapterReviewed={isChapterReviewed}
-            onSelectChapter={scrollToChapter}
-          />
-
-          {/* Actions */}
-          <div className="mt-6 pt-4 border-t border-zinc-800 space-y-2">
+          {/* Collapsed state — icon strip */}
+          <div className={`flex flex-col items-center gap-1 py-3 transition-opacity duration-200 ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none absolute inset-0"}`}>
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+            <div className="w-5 border-t border-zinc-800 my-1" />
+            <button
+              onClick={() => setWalkthroughMode(true)}
+              className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+              title="Guided walkthrough"
+            >
+              <Play className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setChatOpen((s) => !s)}
+              className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+              title="Ask about this PR"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </button>
             {!isLocal && (
               <a
                 href={prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                title="View on GitHub"
               >
                 <ExternalLink className="w-4 h-4" />
-                View on GitHub
               </a>
             )}
-            <button
-              onClick={() => setWalkthroughMode(true)}
-              className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              <Play className="w-4 h-4" />
-              Walkthrough mode
-            </button>
-            <button
-              onClick={() => setChatOpen((s) => !s)}
-              className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Ask about this PR
-            </button>
-            {onReanalyze && (
+          </div>
+
+          {/* Expanded state */}
+          <div className={`h-full flex flex-col overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+            {/* Header with collapse button */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Chapters</span>
               <button
-                onClick={onReanalyze}
-                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                onClick={() => setSidebarCollapsed(true)}
+                className="p-1 text-zinc-600 hover:text-zinc-300 rounded transition-colors"
+                title="Collapse sidebar"
               >
-                <RefreshCw className="w-4 h-4" />
-                Re-analyze{fromCache ? " (cached)" : ""}
+                <PanelLeftClose className="w-4 h-4" />
               </button>
-            )}
-            <button
-              onClick={() => setShowShortcuts((s) => !s)}
-              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <Keyboard className="w-4 h-4" />
-              Keyboard shortcuts
-            </button>
-            <button
-              onClick={handleExportMarkdown}
-              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Export as Markdown
-            </button>
-          </div>
-
-          {/* Approval -- only for GitHub PRs */}
-          {!isLocal && (
-          <div className="mt-4 pt-4 border-t border-zinc-800 space-y-2">
-            {approvalState === "approved" ? (
-              <div className="flex items-center gap-2 text-green-400 text-sm">
-                <ThumbsUp className="w-4 h-4" />
-                PR approved
-              </div>
-            ) : approvalState === "changes-requested" ? (
-              <div className="flex items-center gap-2 text-amber-400 text-sm">
-                <MessageSquareWarning className="w-4 h-4" />
-                Changes requested
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={handleApprove}
-                  disabled={!allReviewed || approvalState === "loading"}
-                  className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                    allReviewed
-                      ? "bg-green-600 hover:bg-green-500 text-white"
-                      : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                  }`}
-                  title={
-                    allReviewed
-                      ? "Approve this PR"
-                      : "Review all chapters first"
-                  }
-                >
-                  <ThumbsUp className="w-4 h-4" />
-                  {approvalState === "loading"
-                    ? "Submitting..."
-                    : "Approve on GitHub"}
-                </button>
-                <button
-                  onClick={handleRequestChanges}
-                  disabled={approvalState === "loading"}
-                  className="w-full py-2 px-3 rounded-lg text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
-                >
-                  <MessageSquareWarning className="w-4 h-4" />
-                  Request changes
-                </button>
-              </>
-            )}
-            {approvalState === "error" && (
-              <p className="text-xs text-red-400">
-                Failed to submit review. Check your gh CLI auth.
-              </p>
-            )}
-          </div>
-          )}
-
-          {/* Local branch info */}
-          {isLocal && (
-            <div className="mt-4 pt-4 border-t border-zinc-800">
-              <p className="text-xs text-zinc-600">
-                Local review &middot;{" "}
-                <span className="text-zinc-400">{review.prInfo.headRef}</span>
-                {" "}vs{" "}
-                <span className="text-zinc-400">{review.prInfo.baseRef}</span>
-              </p>
             </div>
-          )}
+
+            {/* Primary actions — prominent */}
+            <div className="px-3 pb-3 flex-shrink-0 space-y-1.5">
+              <button
+                onClick={() => setWalkthroughMode(true)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Guided Walkthrough
+              </button>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setChatOpen((s) => !s)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Ask AI
+                </button>
+                {!isLocal && (
+                  <a
+                    href={prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    GitHub
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Chapter list */}
+            <div className="flex-1 overflow-y-auto px-2 pb-2">
+              <ChapterTimeline
+                review={review}
+                chapters={review.chapters}
+                activeChapterId={activeChapterId}
+                isChapterReviewed={isChapterReviewed}
+                onSelectChapter={(id) => { setOverviewActive(false); scrollToChapter(id); }}
+                onSelectOverview={() => {
+                  setOverviewActive(true);
+                  setActiveChapterId(null);
+                  const el = document.getElementById("review-overview");
+                  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                overviewActive={overviewActive}
+              />
+            </div>
+
+            {/* Secondary actions & approval */}
+            <div className="flex-shrink-0 border-t border-zinc-800 px-3 py-3 space-y-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {onReanalyze && (
+                  <button
+                    onClick={onReanalyze}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Re-analyze{fromCache ? " (cached)" : ""}
+                  </button>
+                )}
+                <button
+                  onClick={handleExportMarkdown}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Export
+                </button>
+                <button
+                  onClick={() => setShowShortcuts((s) => !s)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                >
+                  <Keyboard className="w-3 h-3" />
+                  Keys
+                </button>
+              </div>
+
+              {/* Approval -- only for GitHub PRs */}
+              {!isLocal && (
+                <div className="space-y-1.5">
+                  {approvalState === "approved" ? (
+                    <div className="flex items-center gap-2 text-green-400 text-sm px-1">
+                      <ThumbsUp className="w-4 h-4" />
+                      PR approved
+                    </div>
+                  ) : approvalState === "changes-requested" ? (
+                    <div className="flex items-center gap-2 text-amber-400 text-sm px-1">
+                      <MessageSquareWarning className="w-4 h-4" />
+                      Changes requested
+                    </div>
+                  ) : (
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={handleApprove}
+                        disabled={!allReviewed || approvalState === "loading"}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                          allReviewed
+                            ? "bg-green-600 hover:bg-green-500 text-white"
+                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                        }`}
+                        title={allReviewed ? "Approve this PR" : "Review all chapters first"}
+                      >
+                        <ThumbsUp className="w-3 h-3" />
+                        {approvalState === "loading" ? "..." : "Approve"}
+                      </button>
+                      <button
+                        onClick={handleRequestChanges}
+                        disabled={approvalState === "loading"}
+                        className="flex-1 py-1.5 px-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <MessageSquareWarning className="w-3 h-3" />
+                        Changes
+                      </button>
+                    </div>
+                  )}
+                  {approvalState === "error" && (
+                    <p className="text-[10px] text-red-400 px-1">
+                      Failed — check gh CLI auth.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Local branch info */}
+              {isLocal && (
+                <p className="text-[10px] text-zinc-600 px-1">
+                  Local &middot;{" "}
+                  <span className="text-zinc-400">{review.prInfo.headRef}</span>
+                  {" "}vs{" "}
+                  <span className="text-zinc-400">{review.prInfo.baseRef}</span>
+                </p>
+              )}
+            </div>
+          </div>
         </aside>
 
         {/* Main content */}
         <main className="flex-1 min-w-0 px-6 py-8 max-w-5xl">
-          {/* Summary card */}
-          <div className={`mb-8 p-5 rounded-xl ${
-            fancy
-              ? "fancy-glass fancy-border-glow"
-              : "bg-zinc-900/50 border border-zinc-800"
-          }`}>
+          {/* Overview / Chapter 0 */}
+          <div
+            id="review-overview"
+            className={`mb-8 p-5 rounded-xl ${
+              fancy
+                ? "fancy-glass fancy-border-glow"
+                : "bg-zinc-900/50 border border-zinc-800"
+            }`}
+          >
+            <p className="text-lg text-zinc-200 leading-relaxed mb-4">{review.summary}</p>
             <div className="flex items-start gap-3 mb-3">
               <div className="w-2 h-2 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
               <div>
                 <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-1">
                   Root Cause
                 </h2>
-                <p className="text-zinc-200">{review.rootCause}</p>
+                <p className="text-zinc-300 text-sm">{review.rootCause}</p>
               </div>
             </div>
-            <p className="text-sm text-zinc-400 ml-5">{review.summary}</p>
+            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-zinc-800/50 text-xs text-zinc-500">
+              {review.prInfo.author && <span>by {review.prInfo.author}</span>}
+              <span>{review.prInfo.changedFiles} files changed</span>
+              <span className="text-green-500/70">+{review.prInfo.additions}</span>
+              <span className="text-red-500/70">−{review.prInfo.deletions}</span>
+              <span>{review.chapters.length} chapters</span>
+            </div>
           </div>
 
           {/* Diff settings toolbar */}
@@ -489,18 +542,18 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
             </div>
           )}
         </main>
-      </div>
 
-      {/* Chat panel */}
-      <ChatPanel
-        review={review}
-        isOpen={chatOpen}
-        onClose={() => {
-          setChatOpen(false);
-          setChatInitialQuestion(undefined);
-        }}
-        initialQuestion={chatInitialQuestion}
-      />
+        {/* Chat panel — in-flow, right side */}
+        <ChatPanel
+          review={review}
+          isOpen={chatOpen}
+          onClose={() => {
+            setChatOpen(false);
+            setChatInitialQuestion(undefined);
+          }}
+          initialQuestion={chatInitialQuestion}
+        />
+      </div>
 
       {/* Walkthrough mode overlay */}
       {walkthroughMode && (

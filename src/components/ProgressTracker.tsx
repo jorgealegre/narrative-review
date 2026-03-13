@@ -6,9 +6,9 @@ import { ShieldCheck, AlertTriangle, Coins, BookOpen } from "lucide-react";
 import { useFancyMode } from "@/hooks/useFancyMode";
 
 const MODEL_LABELS: Record<string, string> = {
-  "claude-3-5-haiku-20241022": "Haiku",
-  "claude-sonnet-4-20250514": "Sonnet",
-  "claude-opus-4-20250514": "Opus",
+  "claude-haiku-4-5-20251001": "Haiku 4.5",
+  "claude-sonnet-4-6": "Sonnet 4.6",
+  "claude-opus-4-6": "Opus 4.6",
 };
 
 interface ProgressTrackerProps {

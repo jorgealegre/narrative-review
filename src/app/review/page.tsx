@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { NarrativeReview } from "@/lib/types";
 import { ReviewContainer } from "@/components/ReviewContainer";
 import { useFancyMode } from "@/hooks/useFancyMode";
@@ -43,16 +43,17 @@ function ReviewContent() {
 
   const isLocal = source === "local";
 
-  // Unique cache key per source
+  // Unique cache key per source + model
   const identifier = isLocal
-    ? `local:${repoPath}:${baseBranch}:${headBranch}`
-    : prUrl || "";
+    ? `local:${repoPath}:${baseBranch}:${headBranch}:${modelParam || ""}`
+    : `${prUrl || ""}:${modelParam || ""}`;
 
   const [review, setReview] = useState<NarrativeReview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Preparing...");
   const [fromCache, setFromCache] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const analyze = useCallback(
     async (skipCache = false) => {
@@ -67,75 +68,70 @@ function ReviewContent() {
         }
       }
 
+      // Abort any previous in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setLoading(true);
       setError(null);
       setFromCache(false);
 
       try {
-        if (isLocal) {
-          setStatus("Running local git diff...");
-          const res = await fetch("/api/analyze-local", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              repoPath,
-              baseBranch: baseBranch || undefined,
-              headBranch: headBranch || undefined,
-              model: modelParam,
-            }),
-          });
+        const endpoint = isLocal ? "/api/analyze-local" : "/api/analyze";
+        const body = isLocal
+          ? { repoPath, baseBranch: baseBranch || undefined, headBranch: headBranch || undefined, model: modelParam }
+          : { url: prUrl, model: modelParam };
 
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || `HTTP ${res.status}`);
-          }
+        setStatus(isLocal ? "Running local git diff..." : "Fetching PR diff and metadata...");
+        const t1 = setTimeout(() => setStatus("Sending to Claude..."), isLocal ? 2000 : 3000);
+        const t2 = setTimeout(() => setStatus("Building narrative..."), isLocal ? 6000 : 8000);
 
-          setStatus("Building narrative...");
-          const data: NarrativeReview = await res.json();
-          setReview(data);
-          setCachedAnalysis(identifier, data);
-          addToHistory({
-            id: identifier,
-            title: data.title,
-            source: "local",
-            label: `${data.prInfo.headRef} → ${data.prInfo.baseRef}`,
-            url: `/review?${new URLSearchParams({ source: "local", repo: repoPath!, base: baseBranch, head: headBranch, model: modelParam || "" }).toString()}`,
-            analyzedAt: data.analyzedAt,
-            chapters: data.chapters.length,
-            model: data.metrics?.model || modelParam || "",
-          });
-        } else {
-          setStatus("Fetching PR diff and metadata...");
-          const res = await fetch("/api/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: prUrl, model: modelParam }),
-          });
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
 
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || `HTTP ${res.status}`);
-          }
+        clearTimeout(t1);
+        clearTimeout(t2);
 
-          setStatus("Building narrative...");
-          const data: NarrativeReview = await res.json();
-          setReview(data);
-          setCachedAnalysis(identifier, data);
-          addToHistory({
-            id: identifier,
-            title: data.title,
-            source: "pr",
-            label: `${data.prInfo.owner}/${data.prInfo.repo}#${data.prInfo.number}`,
-            url: `/review?pr=${encodeURIComponent(prUrl!)}&model=${encodeURIComponent(modelParam || "")}`,
-            analyzedAt: data.analyzedAt,
-            chapters: data.chapters.length,
-            model: data.metrics?.model || modelParam || "",
-          });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
         }
+
+        setStatus("Building narrative...");
+        const data: NarrativeReview = await res.json();
+
+        // Don't update state if this request was aborted
+        if (controller.signal.aborted) return;
+
+        setReview(data);
+        setCachedAnalysis(identifier, data);
+        addToHistory({
+          id: identifier,
+          title: data.title,
+          source: isLocal ? "local" : "pr",
+          label: isLocal
+            ? `${data.prInfo.headRef} → ${data.prInfo.baseRef}`
+            : `${data.prInfo.owner}/${data.prInfo.repo}#${data.prInfo.number}`,
+          url: isLocal
+            ? `/review?${new URLSearchParams({ source: "local", repo: repoPath!, base: baseBranch, head: headBranch, model: modelParam || "" }).toString()}`
+            : `/review?pr=${encodeURIComponent(prUrl!)}&model=${encodeURIComponent(modelParam || "")}`,
+          analyzedAt: data.analyzedAt,
+          chapters: data.chapters.length,
+          model: data.metrics?.model || modelParam || "",
+        });
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     },
     [identifier, isLocal, repoPath, baseBranch, headBranch, modelParam, prUrl]
@@ -143,6 +139,7 @@ function ReviewContent() {
 
   useEffect(() => {
     analyze();
+    return () => { abortRef.current?.abort(); };
   }, [analyze]);
 
   const handleReanalyze = () => {
