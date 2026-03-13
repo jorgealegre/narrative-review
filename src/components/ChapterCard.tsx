@@ -19,6 +19,7 @@ interface ChapterCardProps {
   isActive: boolean;
   onToggleReview: () => void;
   onActivate: () => void;
+  prUrl?: string;
 }
 
 export function ChapterCard({
@@ -28,6 +29,7 @@ export function ChapterCard({
   isActive,
   onToggleReview,
   onActivate,
+  prUrl,
 }: ChapterCardProps) {
   const [expanded, setExpanded] = useState(true);
   const isUncategorized = chapter.id === "uncategorized";
@@ -132,6 +134,9 @@ export function ChapterCard({
                     diffContent={hunk.diffContent}
                     fileName={hunk.file}
                     annotation={hunk.annotation}
+                    githubUrl={
+                      prUrl ? `${prUrl}/files#diff-${encodeURIComponent(hunk.file)}` : undefined
+                    }
                   />
                 ))}
               </div>

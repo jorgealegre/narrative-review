@@ -6,12 +6,16 @@ import { useReviewState } from "@/hooks/useReviewState";
 import { ChapterCard } from "./ChapterCard";
 import { ChapterTimeline } from "./ChapterTimeline";
 import { ProgressTracker } from "./ProgressTracker";
+import { WalkthroughMode } from "./WalkthroughMode";
+import { ChatPanel } from "./ChatPanel";
 import {
   ThumbsUp,
   MessageSquareWarning,
   ExternalLink,
   Keyboard,
   RefreshCw,
+  Play,
+  MessageCircle,
 } from "lucide-react";
 
 interface ReviewContainerProps {
@@ -35,6 +39,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   >("idle");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [walkthroughMode, setWalkthroughMode] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const allReviewed =
     reviewedCount === review.chapters.length && review.chapters.length > 0;
 
@@ -195,6 +201,20 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
               <ExternalLink className="w-4 h-4" />
               View on GitHub
             </a>
+            <button
+              onClick={() => setWalkthroughMode(true)}
+              className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              <Play className="w-4 h-4" />
+              Walkthrough mode
+            </button>
+            <button
+              onClick={() => setChatOpen((s) => !s)}
+              className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Ask about this PR
+            </button>
             {onReanalyze && (
               <button
                 onClick={onReanalyze}
@@ -291,6 +311,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 isActive={chapter.id === activeChapterId}
                 onToggleReview={() => toggleChapter(chapter.id)}
                 onActivate={() => setActiveChapterId(chapter.id)}
+                prUrl={prUrl}
               />
             ))}
           </div>
@@ -308,6 +329,24 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
           )}
         </main>
       </div>
+
+      {/* Chat panel */}
+      <ChatPanel
+        review={review}
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+      />
+
+      {/* Walkthrough mode overlay */}
+      {walkthroughMode && (
+        <WalkthroughMode
+          review={review}
+          isChapterReviewed={isChapterReviewed}
+          onToggleReview={toggleChapter}
+          onExit={() => setWalkthroughMode(false)}
+          startChapterId={activeChapterId || undefined}
+        />
+      )}
 
       {/* Keyboard shortcuts modal */}
       {showShortcuts && (

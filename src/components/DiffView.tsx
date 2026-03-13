@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import { ExternalLink } from "lucide-react";
 
 interface DiffViewProps {
   diffContent: string;
   fileName: string;
   annotation?: string;
+  githubUrl?: string;
 }
 
 function classifyLine(line: string): "add" | "remove" | "context" | "header" {
@@ -15,10 +17,14 @@ function classifyLine(line: string): "add" | "remove" | "context" | "header" {
   return "context";
 }
 
-export function DiffView({ diffContent, fileName, annotation }: DiffViewProps) {
+export function DiffView({
+  diffContent,
+  fileName,
+  annotation,
+  githubUrl,
+}: DiffViewProps) {
   const lines = useMemo(() => {
     return diffContent.split("\n").filter((l) => {
-      // Skip diff headers, we show file name separately
       if (l.startsWith("diff --git")) return false;
       if (l.startsWith("index ")) return false;
       if (l.startsWith("---")) return false;
@@ -33,9 +39,20 @@ export function DiffView({ diffContent, fileName, annotation }: DiffViewProps) {
   }, [diffContent]);
 
   return (
-    <div className="rounded-lg border border-zinc-800 overflow-hidden mb-3">
+    <div className="rounded-lg border border-zinc-800 overflow-hidden mb-3 group">
       <div className="flex items-center justify-between bg-zinc-900 px-4 py-2 border-b border-zinc-800">
         <span className="text-sm font-mono text-zinc-300">{fileName}</span>
+        {githubUrl && (
+          <a
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300"
+            title="View on GitHub"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
       </div>
       {annotation && (
         <div className="bg-indigo-950/30 border-b border-zinc-800 px-4 py-2">
