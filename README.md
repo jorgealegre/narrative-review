@@ -70,7 +70,114 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 
 ---
 
-## Setup
+## GitHub Action — Add to Your Repo
+
+The fastest way to use Narrative Review is as a GitHub Action. When a PR is opened or updated, the action generates a narrative review and posts a link as a PR comment.
+
+### 1. Add the workflow
+
+Create `.github/workflows/narrative-review.yml` in your repo:
+
+```yaml
+name: Narrative Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  checks: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: >-
+      (
+        contains(github.event.pull_request.labels.*.name, 'run-narrative-review')
+      ) || (
+        !github.event.pull_request.draft
+        && github.event.pull_request.base.ref != 'master'
+        && !contains(github.event.pull_request.labels.*.name, 'wip')
+      )
+    steps:
+      - uses: sp0n-7/narrative-review@main
+        id: narrative
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload review artifact
+        if: success() && steps.narrative.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: narrative-review-${{ github.event.pull_request.number }}
+          path: _narrative-review-output/index.html
+          retention-days: 90
+          overwrite: true
+
+      - name: Comment on PR
+        if: success() && steps.narrative.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          CHAPTERS: ${{ steps.narrative.outputs.chapters }}
+          REVIEW_URL: ${{ steps.narrative.outputs.review-url }}
+        run: |
+          if [ -n "${REVIEW_URL}" ]; then
+            LINK="[**View Narrative Review**](${REVIEW_URL})"
+          else
+            LINK="[**Download the review**](https://github.com/${REPO}/actions/runs/${RUN_ID}) — Artifacts → \`narrative-review-${PR_NUM}\`"
+          fi
+          gh pr comment "${PR_NUM}" --body "## Narrative Review
+          **${CHAPTERS} chapters** — ${LINK}"
+```
+
+### 2. Add the Anthropic API key
+
+Go to your repo's **Settings → Secrets and variables → Actions** and add:
+
+- **`ANTHROPIC_API_KEY`** — your key from [console.anthropic.com](https://console.anthropic.com)
+
+### 3. (Optional) Enable GitHub Pages
+
+For direct review links instead of artifact downloads:
+
+1. Create a `gh-pages` branch: `git checkout --orphan gh-pages && git commit --allow-empty -m "init" && git push origin gh-pages`
+2. Go to **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`**
+3. Add a `.nojekyll` file to the `gh-pages` branch
+
+Reviews will be served at `https://<org>.github.io/<repo>/reviews/<pr-number>/`.
+
+### Action inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `anthropic-api-key` | *required* | Anthropic API key |
+| `github-token` | `${{ github.token }}` | GitHub token (auto-provided) |
+| `model` | `claude-sonnet-4-6` | Claude model (`claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6`) |
+| `max-diff-size` | `512000` | Max diff size in bytes before skipping |
+| `max-lines` | `5000` | Max lines changed before skipping |
+| `max-cost` | `2.00` | Max estimated cost (USD) before skipping |
+| `force` | `false` | Bypass all size/cost/line checks |
+
+### Built-in guards
+
+The action automatically skips reviews when:
+- PR is a **draft**
+- PR targets **`master`** (configurable in the workflow `if` condition)
+- PR has the **`wip`** label
+- PR has more than **5,000 lines** changed
+- Estimated cost exceeds **$2.00**
+
+To force a review on any PR, add the **`run-narrative-review`** label.
+
+---
+
+## Local Web App
+
+You can also run Narrative Review as a local web app with additional features (AI chat, GitHub approve/comment, review history).
 
 ### Prerequisites
 
@@ -81,7 +188,6 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 ### Install
 
 ```bash
-cd ~/Developer
 git clone <repo-url> narrative-review
 cd narrative-review
 npm install
