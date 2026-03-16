@@ -33,9 +33,11 @@ interface ReviewContainerProps {
   review: NarrativeReview;
   fromCache?: boolean;
   onReanalyze?: () => void;
+  mode?: "interactive" | "static";
 }
 
-export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContainerProps) {
+export function ReviewContainer({ review, fromCache, onReanalyze, mode = "interactive" }: ReviewContainerProps) {
+  const isStatic = mode === "static";
   const { fancy } = useFancyMode();
   const isLocal = review.prInfo.number === 0;
   const prId = isLocal
@@ -255,13 +257,15 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
             >
               <Play className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setChatOpen((s) => !s)}
-              className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
-              title="Ask about this PR"
-            >
-              <MessageCircle className="w-4 h-4" />
-            </button>
+            {!isStatic && (
+              <button
+                onClick={() => setChatOpen((s) => !s)}
+                className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                title="Ask about this PR"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            )}
             {!isLocal && (
               <a
                 href={prUrl}
@@ -299,13 +303,15 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 Guided Walkthrough
               </button>
               <div className="flex gap-1.5">
-                <button
-                  onClick={() => setChatOpen((s) => !s)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Ask AI
-                </button>
+                {!isStatic && (
+                  <button
+                    onClick={() => setChatOpen((s) => !s)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Ask AI
+                  </button>
+                )}
                 {!isLocal && (
                   <a
                     href={prUrl}
@@ -366,8 +372,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 </button>
               </div>
 
-              {/* Approval -- only for GitHub PRs */}
-              {!isLocal && (
+              {/* Approval -- only for GitHub PRs, not in static mode */}
+              {!isLocal && !isStatic && (
                 <div className="space-y-1.5">
                   {approvalState === "approved" ? (
                     <div className="flex items-center gap-2 text-green-400 text-sm px-1">
@@ -522,7 +528,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 prUrl={isLocal ? undefined : prUrl}
                 prInfo={isLocal ? undefined : review.prInfo}
                 diffSettings={diffSettings}
-                onAskAbout={handleAskAbout}
+                onAskAbout={isStatic ? undefined : handleAskAbout}
                 note={reviewState.notes[chapter.id] || ""}
                 onNoteChange={(n) => setNote(chapter.id, n)}
                 defaultExpanded={allExpanded}
@@ -537,22 +543,24 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 All chapters reviewed
               </p>
               <p className="text-zinc-500 text-sm mt-1">
-                You can now approve the PR from the sidebar.
+                {isStatic ? "Review complete." : "You can now approve the PR from the sidebar."}
               </p>
             </div>
           )}
         </main>
 
         {/* Chat panel — in-flow, right side */}
-        <ChatPanel
-          review={review}
-          isOpen={chatOpen}
-          onClose={() => {
-            setChatOpen(false);
-            setChatInitialQuestion(undefined);
-          }}
-          initialQuestion={chatInitialQuestion}
-        />
+        {!isStatic && (
+          <ChatPanel
+            review={review}
+            isOpen={chatOpen}
+            onClose={() => {
+              setChatOpen(false);
+              setChatInitialQuestion(undefined);
+            }}
+            initialQuestion={chatInitialQuestion}
+          />
+        )}
       </div>
 
       {/* Walkthrough mode overlay */}

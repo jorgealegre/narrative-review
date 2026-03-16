@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2 } from "lucide-react";
-import { DiffSettings } from "@/lib/types";
+import { DiffSettings, PRComment } from "@/lib/types";
 
 interface DiffViewProps {
   diffContent: string;
@@ -12,6 +12,7 @@ interface DiffViewProps {
   prInfo?: { owner: string; repo: string; number: number };
   settings?: DiffSettings;
   onAskAbout?: (question: string) => void;
+  comments?: PRComment[];
 }
 
 function classifyLine(line: string): "add" | "remove" | "context" | "header" {
@@ -194,6 +195,20 @@ function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
   );
 }
 
+function InlineComment({ comment }: { comment: PRComment }) {
+  return (
+    <div className="bg-zinc-800/60 border-l-2 border-indigo-500/50 mx-4 my-1 px-3 py-2 rounded-r-lg">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-medium text-indigo-300">{comment.author}</span>
+        <span className="text-xs text-zinc-600">
+          {new Date(comment.createdAt).toLocaleDateString()}
+        </span>
+      </div>
+      <p className="text-xs text-zinc-300 whitespace-pre-wrap">{comment.body}</p>
+    </div>
+  );
+}
+
 // ── Unified / Compact view ──────────────────────────────────────────────
 
 function UnifiedDiffLines({
@@ -206,6 +221,7 @@ function UnifiedDiffLines({
   commentLoading,
   postedComments,
   handleComment,
+  prComments,
 }: {
   lines: string[];
   settings: DiffSettings;
@@ -216,6 +232,7 @@ function UnifiedDiffLines({
   commentLoading: boolean;
   postedComments: Set<number>;
   handleComment: (body: string) => Promise<void>;
+  prComments?: PRComment[];
 }) {
   const emptyWs: WsAnalysis = useMemo(() => ({
     hidden: new Set<number>(), demoted: new Set<number>(),
@@ -360,6 +377,10 @@ function UnifiedDiffLines({
                 loading={commentLoading}
               />
             )}
+            {prComments && newLineNum !== null && prComments
+              .filter((c) => c.line === newLineNum)
+              .map((c) => <InlineComment key={c.id} comment={c} />)
+            }
           </div>
         );
       })}
@@ -549,6 +570,7 @@ export function DiffView({
   prInfo,
   settings = DEFAULT_SETTINGS,
   onAskAbout,
+  comments,
 }: DiffViewProps) {
   const [commentLine, setCommentLine] = useState<number | null>(null);
   const [commentLoading, setCommentLoading] = useState(false);
@@ -646,6 +668,7 @@ export function DiffView({
               commentLoading={commentLoading}
               postedComments={postedComments}
               handleComment={handleComment}
+              prComments={comments}
             />
           </pre>
         )}

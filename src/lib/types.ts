@@ -99,3 +99,19 @@ export interface ReviewState {
   startedAt: string;
   lastUpdatedAt: string;
 }
+
+export interface PRComment {
+  id: number;
+  author: string;
+  body: string;
+  path: string;
+  line: number | null;
+  side: "LEFT" | "RIGHT";
+  createdAt: string;
+  htmlUrl: string;
+}
+
+export interface StaticReviewData {
+  review: NarrativeReview;
+  comments: PRComment[];
+}

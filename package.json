@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:static": "vite build --config static/vite.config.mts",
+    "build:action": "ncc build action/index.ts -o dist-action && cp dist-static/index.html dist-action/template.html",
+    "build:all": "npm run build:static && npm run build:action"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -17,13 +20,19 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1",
     "@tailwindcss/postcss": "^4",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vercel/ncc": "^0.38.4",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-plugin-singlefile": "^2.3.2"
   }
 }

@@ -1,0 +1,38 @@
+name: "Narrative Review"
+description: "AI-powered narrative code review for pull requests"
+inputs:
+  anthropic-api-key:
+    description: "Anthropic API key for Claude"
+    required: true
+  github-token:
+    description: "GitHub token with checks and contents write permissions"
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: "Claude model to use (claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-6)"
+    required: false
+    default: "claude-sonnet-4-6"
+  max-diff-size:
+    description: "Maximum diff size in bytes before skipping analysis"
+    required: false
+    default: "512000"
+  max-lines:
+    description: "Maximum lines changed (additions + deletions) before skipping"
+    required: false
+    default: "5000"
+  max-cost:
+    description: "Maximum estimated cost in USD before skipping"
+    required: false
+    default: "2.00"
+  force:
+    description: "Set to 'true' to bypass all size/cost/line checks"
+    required: false
+    default: "false"
+outputs:
+  review-url:
+    description: "URL to the generated narrative review page"
+  chapters:
+    description: "Number of chapters in the generated review"
+runs:
+  using: "node20"
+  main: "dist/index.js"

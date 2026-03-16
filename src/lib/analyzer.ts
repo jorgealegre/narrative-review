@@ -2,7 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { jsonSchemaOutputFormat } from "@anthropic-ai/sdk/helpers/json-schema";
 import { ParsedDiff, Chapter, ChapterHunk, ModelId, AnalysisMetrics } from "./types";
 
-const client = new Anthropic();
+let _client: Anthropic | null = null;
+function getClient(): Anthropic {
+  if (!_client) _client = new Anthropic();
+  return _client;
+}
 
 const MODEL_PRICING: Record<ModelId, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
@@ -127,7 +131,7 @@ Analyze this diff and return the narrative JSON.`;
 
   const startTime = Date.now();
 
-  const stream = client.messages.stream({
+  const stream = getClient().messages.stream({
     model,
     max_tokens: 16000,
     system: [
