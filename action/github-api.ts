@@ -1,5 +1,8 @@
+import * as core from "@actions/core";
 import * as github from "@actions/github";
 import type { PRInfo, PRComment } from "../src/lib/types";
+
+const COMMENT_MARKER = "<!-- narrative-review -->";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
 
@@ -72,4 +75,98 @@ export async function fetchPRComments(
   }
 
   return comments;
+}
+
+export async function fetchFileContents(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ref: string,
+  filePaths: string[]
+): Promise<Record<string, string>> {
+  const contents: Record<string, string> = {};
+  const batchSize = 5;
+
+  for (let i = 0; i < filePaths.length; i += batchSize) {
+    const batch = filePaths.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map(async (filePath) => {
+        const { data } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path: filePath,
+          ref,
+        });
+        if (!Array.isArray(data) && data.type === "file" && data.content) {
+          contents[filePath] = Buffer.from(data.content, "base64").toString("utf-8");
+        }
+      })
+    );
+    for (const r of results) {
+      if (r.status === "rejected") {
+        // File may be deleted in this PR
+      }
+    }
+  }
+
+  return contents;
+}
+
+export async function deletePreviousNarrativeComments(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  number: number
+): Promise<number> {
+  let deleted = 0;
+  const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: number,
+    per_page: 100,
+  });
+
+  for await (const { data } of iterator) {
+    for (const comment of data) {
+      if (comment.body?.includes(COMMENT_MARKER)) {
+        try {
+          await octokit.rest.issues.deleteComment({
+            owner,
+            repo,
+            comment_id: comment.id,
+          });
+          deleted++;
+        } catch (e) {
+          core.warning(`Failed to delete comment ${comment.id}: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+  }
+
+  return deleted;
+}
+
+export async function postNarrativeComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  number: number,
+  reviewUrl: string,
+  chapterCount: number,
+  fileCount: number
+): Promise<void> {
+  const body = `${COMMENT_MARKER}
+## 📖 Narrative Review
+
+AI-organized walkthrough of this PR's changes — ${chapterCount} chapters across ${fileCount} files.
+
+**[View Narrative Review →](${reviewUrl})**
+`;
+
+  await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: number,
+    body,
+  });
 }

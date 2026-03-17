@@ -51,6 +51,30 @@ export function fetchPRDiff(
   return exec(`gh pr diff ${number} --repo ${owner}/${repo}`);
 }
 
+export function fetchFileContents(
+  owner: string,
+  repo: string,
+  number: number,
+  filePaths: string[]
+): Record<string, string> {
+  const ref = exec(
+    `gh pr view ${number} --repo ${owner}/${repo} --json headRefOid --jq .headRefOid`
+  ).trim();
+
+  const contents: Record<string, string> = {};
+  for (const filePath of filePaths) {
+    try {
+      const content = exec(
+        `gh api repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}?ref=${ref} --jq .content`
+      );
+      contents[filePath] = Buffer.from(content.trim(), "base64").toString("utf-8");
+    } catch {
+      // File may be deleted in this PR, skip
+    }
+  }
+  return contents;
+}
+
 export function approvePR(
   owner: string,
   repo: string,

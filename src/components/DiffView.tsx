@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2 } from "lucide-react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { DiffSettings, PRComment } from "@/lib/types";
+
+const EXPAND_STEP = 20;
 
 interface DiffViewProps {
   diffContent: string;
@@ -13,6 +15,7 @@ interface DiffViewProps {
   settings?: DiffSettings;
   onAskAbout?: (question: string) => void;
   comments?: PRComment[];
+  fileContent?: string;
 }
 
 function classifyLine(line: string): "add" | "remove" | "context" | "header" {
@@ -26,6 +29,28 @@ function parseHunkHeader(headerLine: string): { oldStart: number; newStart: numb
   const match = headerLine.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
   if (!match) return null;
   return { oldStart: parseInt(match[1], 10), newStart: parseInt(match[2], 10) };
+}
+
+function getDiffNewLineRange(lines: string[]): { firstLine: number; lastLine: number } | null {
+  let firstLine = -1;
+  let currentLine = 0;
+  let lastLine = 0;
+
+  for (const line of lines) {
+    const type = classifyLine(line);
+    if (type === "header") {
+      const parsed = parseHunkHeader(line);
+      if (parsed) {
+        if (firstLine === -1) firstLine = parsed.newStart;
+        currentLine = parsed.newStart;
+      }
+    } else if (type === "add" || type === "context") {
+      lastLine = currentLine;
+      currentLine++;
+    }
+  }
+
+  return firstLine >= 0 ? { firstLine, lastLine } : null;
 }
 
 interface WsAnalysis {
@@ -307,80 +332,109 @@ function UnifiedDiffLines({
     });
   }, [lines, settings.viewMode, settings.hideWhitespace, wsAnalysis]);
 
+  const [expandedGaps, setExpandedGaps] = useState<Set<number>>(new Set());
+  const toggleGap = useCallback((posIdx: number) => {
+    setExpandedGaps(prev => {
+      const next = new Set(prev);
+      if (next.has(posIdx)) next.delete(posIdx);
+      else next.add(posIdx);
+      return next;
+    });
+  }, []);
+
+  const renderLine = useCallback((lineIdx: number, key: string) => {
+    const line = lines[lineIdx];
+    const type = classifyLine(line);
+    const isDemoted = wsAnalysis.demoted.has(lineIdx);
+    const nums = lineNumbers[lineIdx];
+    const newLineNum = nums.new;
+    const canComment = prInfo && newLineNum !== null && type !== "header";
+    const hasComment = newLineNum !== null && postedComments.has(newLineNum);
+    const matchedRemoveIdx = isDemoted ? wsAnalysis.addToRemove.get(lineIdx) : undefined;
+    const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
+
+    let bg = "";
+    let textColor = "text-zinc-400";
+    if (isDemoted) {
+      // ws-only
+    } else if (type === "add") { bg = "bg-green-950/40"; textColor = "text-green-300"; }
+    else if (type === "remove") { bg = "bg-red-950/40"; textColor = "text-red-300"; }
+    else if (type === "header") { bg = "bg-blue-950/30"; textColor = "text-blue-400"; }
+
+    const displayLine = isDemoted ? " " + line.slice(1) : line;
+
+    return (
+      <div key={key}>
+        <div
+          className={`px-4 ${bg} ${textColor} font-mono flex items-center group/line ${
+            canComment ? "cursor-pointer hover:brightness-125" : ""
+          }`}
+          onClick={() => {
+            if (canComment && newLineNum !== null) {
+              setCommentLine(commentLine === newLineNum ? null : newLineNum);
+            }
+          }}
+        >
+          <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
+            {isDemoted ? (demotedOldNum ?? "") : (nums.old ?? "")}
+          </span>
+          <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
+            {nums.new ?? ""}
+          </span>
+          <span className="select-none flex-shrink-0 w-4">{displayLine?.[0] ?? " "}</span><span className="flex-1">{displayLine?.slice(1) || " "}</span>
+          {canComment && (
+            <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
+              {hasComment ? (
+                <MessageSquare className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400/20" />
+              ) : (
+                <MessageSquare className="w-3.5 h-3.5 text-zinc-600" />
+              )}
+            </span>
+          )}
+        </div>
+        {commentLine === newLineNum && newLineNum !== null && (
+          <CommentForm
+            onSubmit={handleComment}
+            onCancel={() => setCommentLine(null)}
+            loading={commentLoading}
+          />
+        )}
+        {prComments && newLineNum !== null && prComments
+          .filter((c) => c.line === newLineNum)
+          .map((c) => <InlineComment key={c.id} comment={c} />)
+        }
+      </div>
+    );
+  }, [lines, wsAnalysis, lineNumbers, prInfo, postedComments, commentLine, setCommentLine, commentLoading, handleComment, prComments]);
+
   return (
     <>
       {visibleIndices.map((i, posIdx) => {
-        const line = lines[i];
-        const type = classifyLine(line);
-        const isDemoted = wsAnalysis.demoted.has(i);
-        const nums = lineNumbers[i];
-        const newLineNum = nums.new;
-        const canComment = prInfo && newLineNum !== null && type !== "header";
-        const hasComment = newLineNum !== null && postedComments.has(newLineNum);
-
-        // For demoted lines, also show the old line number from the matched remove
-        const matchedRemoveIdx = isDemoted ? wsAnalysis.addToRemove.get(i) : undefined;
-        const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
-
-        let bg = "";
-        let textColor = "text-zinc-400";
-        if (isDemoted) {
-          // Whitespace-only change — render as context (no bg highlight)
-        } else if (type === "add") { bg = "bg-green-950/40"; textColor = "text-green-300"; }
-        else if (type === "remove") { bg = "bg-red-950/40"; textColor = "text-red-300"; }
-        else if (type === "header") { bg = "bg-blue-950/30"; textColor = "text-blue-400"; }
-
-        const displayLine = isDemoted ? " " + line.slice(1) : line;
-
-        // Gap indicator — detect non-contiguous positions in compact mode
         const prevI = posIdx > 0 ? visibleIndices[posIdx - 1] : -1;
-        const showGap = posIdx > 0 && i - prevI > 1 && settings.viewMode === "compact";
+        const hasGap = posIdx > 0 && i - prevI > 1 && settings.viewMode === "compact";
+        const gapExpanded = expandedGaps.has(posIdx);
+        const hiddenCount = hasGap ? i - prevI - 1 : 0;
+
+        const hiddenLines: number[] = [];
+        if (hasGap && gapExpanded) {
+          for (let h = prevI + 1; h < i; h++) {
+            if (!wsAnalysis.hidden.has(h)) hiddenLines.push(h);
+          }
+        }
 
         return (
           <div key={`${i}-${posIdx}`}>
-            {showGap && (
-              <div className="bg-zinc-900/60 text-zinc-600 text-xs text-center py-0.5 border-y border-zinc-800/50 select-none">
-                ⋯
-              </div>
+            {hasGap && (
+              <button
+                onClick={() => toggleGap(posIdx)}
+                className="w-full bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 text-xs text-center py-0.5 border-y border-zinc-800/50 select-none flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ChevronsUpDown className="w-3 h-3" />
+                {gapExpanded ? "Collapse" : `Show ${hiddenCount} hidden lines`}
+              </button>
             )}
-            <div
-              className={`px-4 ${bg} ${textColor} font-mono flex items-center group/line ${
-                canComment ? "cursor-pointer hover:brightness-125" : ""
-              }`}
-              onClick={() => {
-                if (canComment && newLineNum !== null) {
-                  setCommentLine(commentLine === newLineNum ? null : newLineNum);
-                }
-              }}
-            >
-              <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
-                {isDemoted ? (demotedOldNum ?? "") : (nums.old ?? "")}
-              </span>
-              <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
-                {nums.new ?? ""}
-              </span>
-              <span className="flex-1">{displayLine || " "}</span>
-              {canComment && (
-                <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
-                  {hasComment ? (
-                    <MessageSquare className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400/20" />
-                  ) : (
-                    <MessageSquare className="w-3.5 h-3.5 text-zinc-600" />
-                  )}
-                </span>
-              )}
-            </div>
-            {commentLine === newLineNum && newLineNum !== null && (
-              <CommentForm
-                onSubmit={handleComment}
-                onCancel={() => setCommentLine(null)}
-                loading={commentLoading}
-              />
-            )}
-            {prComments && newLineNum !== null && prComments
-              .filter((c) => c.line === newLineNum)
-              .map((c) => <InlineComment key={c.id} comment={c} />)
-            }
+            {hiddenLines.map(h => renderLine(h, `gap-${posIdx}-${h}`))}
+            {renderLine(i, `line-${i}`)}
           </div>
         );
       })}
@@ -514,8 +568,9 @@ function SplitDiffView({
               <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
                 {pair.oldNum ?? ""}
               </span>
+              <span className="select-none flex-shrink-0 w-4">{hasOld ? (pair.oldLine?.[0] ?? " ") : ""}</span>
               <span className="flex-1 truncate px-2">
-                {hasOld ? pair.oldLine || " " : ""}
+                {hasOld ? pair.oldLine?.slice(1) || " " : ""}
               </span>
             </div>
           );
@@ -547,8 +602,9 @@ function SplitDiffView({
               <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
                 {pair.newNum ?? ""}
               </span>
+              <span className="select-none flex-shrink-0 w-4">{hasNew ? (pair.newLine?.[0] ?? " ") : ""}</span>
               <span className="flex-1 truncate px-2">
-                {hasNew ? pair.newLine || " " : ""}
+                {hasNew ? pair.newLine?.slice(1) || " " : ""}
               </span>
             </div>
           );
@@ -556,6 +612,87 @@ function SplitDiffView({
       </div>
     </div>
   );
+}
+
+// ── Expand context lines ────────────────────────────────────────────────
+
+function ExpandButton({
+  direction,
+  remaining,
+  onClick,
+  loading,
+}: {
+  direction: "above" | "below";
+  remaining: number;
+  onClick: () => void;
+  loading?: boolean;
+}) {
+  const count = Math.min(remaining, EXPAND_STEP);
+  const Icon = direction === "above" ? ChevronUp : ChevronDown;
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="w-full flex items-center justify-center gap-1.5 py-1 text-xs text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/5 transition-colors select-none border-zinc-800/50"
+      style={{
+        borderTopWidth: direction === "above" ? 0 : 1,
+        borderBottomWidth: direction === "below" ? 0 : 1,
+      }}
+    >
+      {loading ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : (
+        <Icon className="w-3 h-3" />
+      )}
+      {loading ? "Loading file…" : `Show ${count} more line${count !== 1 ? "s" : ""} ${direction}`}
+    </button>
+  );
+}
+
+function ExpandedContextLines({
+  fileLines,
+  startLine,
+  endLine,
+}: {
+  fileLines: string[];
+  startLine: number;
+  endLine: number;
+}) {
+  const linesToRender: { num: number; content: string }[] = [];
+  for (let i = startLine; i <= endLine; i++) {
+    if (i >= 1 && i <= fileLines.length) {
+      linesToRender.push({ num: i, content: fileLines[i - 1] });
+    }
+  }
+
+  return (
+    <>
+      {linesToRender.map(({ num, content }) => (
+        <div
+          key={`expanded-${num}`}
+          className="px-4 text-zinc-500 font-mono flex items-center bg-zinc-950/40"
+        >
+          <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
+            {num}
+          </span>
+          <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
+            {num}
+          </span>
+          <span className="select-none flex-shrink-0 w-4">{" "}</span>
+          <span className="flex-1">{content || " "}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ── File content cache (shared across DiffView instances) ───────────────
+
+const fileContentCache = new Map<string, string[]>();
+
+function cacheKeyForFile(owner: string, repo: string, number: number, path: string) {
+  return `${owner}/${repo}#${number}:${path}`;
 }
 
 // ── Main DiffView ───────────────────────────────────────────────────────
@@ -571,10 +708,15 @@ export function DiffView({
   settings = DEFAULT_SETTINGS,
   onAskAbout,
   comments,
+  fileContent: fileContentProp,
 }: DiffViewProps) {
   const [commentLine, setCommentLine] = useState<number | null>(null);
   const [commentLoading, setCommentLoading] = useState(false);
   const [postedComments, setPostedComments] = useState<Set<number>>(new Set());
+  const [expandAbove, setExpandAbove] = useState(0);
+  const [expandBelow, setExpandBelow] = useState(0);
+  const [fileLines, setFileLines] = useState<string[] | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
 
   const lines = useMemo(() => {
     return diffContent.split("\n").filter((l) => {
@@ -590,6 +732,96 @@ export function DiffView({
       return true;
     });
   }, [diffContent]);
+
+  const lineRange = useMemo(() => getDiffNewLineRange(lines), [lines]);
+
+  useEffect(() => {
+    if (fileContentProp) {
+      setFileLines(fileContentProp.split("\n"));
+    }
+  }, [fileContentProp]);
+
+  const fetchFileContent = useCallback(async () => {
+    if (fileLines || loadingFile || !prInfo) return;
+
+    const key = cacheKeyForFile(prInfo.owner, prInfo.repo, prInfo.number, fileName);
+    const cached = fileContentCache.get(key);
+    if (cached) {
+      setFileLines(cached);
+      return;
+    }
+
+    setLoadingFile(true);
+    try {
+      const params = new URLSearchParams({
+        owner: prInfo.owner,
+        repo: prInfo.repo,
+        number: String(prInfo.number),
+        path: fileName,
+      });
+      const res = await fetch(`/api/file-content?${params}`);
+      if (res.ok) {
+        const { content } = await res.json();
+        const split = (content as string).split("\n");
+        fileContentCache.set(key, split);
+        setFileLines(split);
+      }
+    } catch {
+      // silently fail - expand buttons will just not appear
+    } finally {
+      setLoadingFile(false);
+    }
+  }, [fileLines, loadingFile, prInfo, fileName]);
+
+  const handleExpandAbove = useCallback(() => {
+    if (!fileLines && !loadingFile) {
+      fetchFileContent().then(() => {
+        setExpandAbove((n) => n + EXPAND_STEP);
+      });
+    } else {
+      setExpandAbove((n) => n + EXPAND_STEP);
+    }
+  }, [fileLines, loadingFile, fetchFileContent]);
+
+  const handleExpandBelow = useCallback(() => {
+    if (!fileLines && !loadingFile) {
+      fetchFileContent().then(() => {
+        setExpandBelow((n) => n + EXPAND_STEP);
+      });
+    } else {
+      setExpandBelow((n) => n + EXPAND_STEP);
+    }
+  }, [fileLines, loadingFile, fetchFileContent]);
+
+  const { aboveStart, aboveEnd, belowStart, belowEnd, canExpandAbove, canExpandBelow } = useMemo(() => {
+    if (!lineRange || !fileLines) {
+      const hasSource = !!prInfo || !!fileContentProp;
+      return {
+        aboveStart: 0,
+        aboveEnd: 0,
+        belowStart: 0,
+        belowEnd: 0,
+        canExpandAbove: hasSource && !!lineRange && lineRange.firstLine > 1,
+        canExpandBelow: hasSource && !!lineRange,
+      };
+    }
+
+    const totalFileLines = fileLines.length;
+    const aboveAvailable = lineRange.firstLine - 1;
+    const belowAvailable = totalFileLines - lineRange.lastLine;
+
+    const showAbove = Math.min(expandAbove, aboveAvailable);
+    const showBelow = Math.min(expandBelow, belowAvailable);
+
+    return {
+      aboveStart: lineRange.firstLine - showAbove,
+      aboveEnd: lineRange.firstLine - 1,
+      belowStart: lineRange.lastLine + 1,
+      belowEnd: lineRange.lastLine + showBelow,
+      canExpandAbove: expandAbove < aboveAvailable,
+      canExpandBelow: expandBelow < belowAvailable,
+    };
+  }, [lineRange, fileLines, expandAbove, expandBelow, prInfo, fileContentProp]);
 
   const handleComment = async (body: string) => {
     if (!prInfo || commentLine === null) return;
@@ -616,44 +848,72 @@ export function DiffView({
     }
   };
 
+  const remainingAbove = lineRange
+    ? (fileLines ? lineRange.firstLine - 1 - expandAbove : lineRange.firstLine - 1)
+    : 0;
+  const remainingBelow = lineRange && fileLines
+    ? fileLines.length - lineRange.lastLine - expandBelow
+    : EXPAND_STEP;
+
   return (
     <div className="rounded-lg border border-zinc-800 overflow-hidden mb-3 group">
-      <div className="flex items-center justify-between bg-zinc-900 px-4 py-2 border-b border-zinc-800">
-        <span className="text-sm font-mono text-zinc-300">{fileName}</span>
-        <div className="flex items-center gap-2">
-          {onAskAbout && (
-            <button
-              onClick={() => {
-                const snippet = diffContent.split("\n").slice(0, 30).join("\n");
-                onAskAbout(
-                  `Explain this code change in ${fileName}:\n\n\`\`\`\n${snippet}\n\`\`\`\n${annotation ? `\nThe annotation says: "${annotation}"` : ""}\n\nWhat exactly is happening here and why?`
-                );
-              }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-indigo-400"
-              title="Ask about this code"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {githubUrl && (
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300"
-              title="View on GitHub"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          )}
+      <div className="bg-zinc-900 px-4 py-2 border-b border-zinc-800">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-mono text-zinc-300">{fileName}</span>
+          <div className="flex items-center gap-2">
+            {onAskAbout && (
+              <button
+                onClick={() => {
+                  const snippet = diffContent.split("\n").slice(0, 30).join("\n");
+                  onAskAbout(
+                    `Explain this code change in ${fileName}:\n\n\`\`\`\n${snippet}\n\`\`\`\n${annotation ? `\nThe annotation says: "${annotation}"` : ""}\n\nWhat exactly is happening here and why?`
+                  );
+                }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-indigo-400"
+                title="Ask about this code"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {githubUrl && (
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300"
+                title="View on GitHub"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
         </div>
+        {annotation && (
+          <p className="text-xs text-indigo-300/80 mt-1">{annotation}</p>
+        )}
       </div>
-      {annotation && (
-        <div className="bg-indigo-950/30 border-b border-zinc-800 px-4 py-2">
-          <p className="text-sm text-indigo-300 italic">{annotation}</p>
-        </div>
-      )}
       <div className="overflow-x-auto">
+        {/* Expand above */}
+        {canExpandAbove && (
+          <ExpandButton
+            direction="above"
+            remaining={Math.max(remainingAbove, 0)}
+            onClick={handleExpandAbove}
+            loading={loadingFile}
+          />
+        )}
+
+        {/* Expanded lines above the diff */}
+        {fileLines && expandAbove > 0 && aboveStart <= aboveEnd && (
+          <pre className="text-sm leading-6">
+            <ExpandedContextLines
+              fileLines={fileLines}
+              startLine={aboveStart}
+              endLine={aboveEnd}
+            />
+          </pre>
+        )}
+
         {settings.viewMode === "split" ? (
           <SplitDiffView lines={lines} settings={settings} />
         ) : (
@@ -671,6 +931,27 @@ export function DiffView({
               prComments={comments}
             />
           </pre>
+        )}
+
+        {/* Expanded lines below the diff */}
+        {fileLines && expandBelow > 0 && belowStart <= belowEnd && (
+          <pre className="text-sm leading-6">
+            <ExpandedContextLines
+              fileLines={fileLines}
+              startLine={belowStart}
+              endLine={belowEnd}
+            />
+          </pre>
+        )}
+
+        {/* Expand below */}
+        {(canExpandBelow || (!fileLines && lineRange)) && (
+          <ExpandButton
+            direction="below"
+            remaining={Math.max(remainingBelow, 0)}
+            onClick={handleExpandBelow}
+            loading={loadingFile}
+          />
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
 import { DiffView } from "./DiffView";
 import {
@@ -18,6 +18,8 @@ import {
   Columns2,
   EyeOff,
   Eye,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 interface WalkthroughModeProps {
@@ -26,6 +28,7 @@ interface WalkthroughModeProps {
   onToggleReview: (id: string) => void;
   onExit: () => void;
   startChapterId?: string;
+  fileContents?: Record<string, string>;
 }
 
 export function WalkthroughMode({
@@ -34,6 +37,7 @@ export function WalkthroughMode({
   onToggleReview,
   onExit,
   startChapterId,
+  fileContents,
 }: WalkthroughModeProps) {
   // -1 = intro slide, 0..n = chapter slides
   const startIndex = startChapterId
@@ -47,6 +51,7 @@ export function WalkthroughMode({
     hideWhitespace: false,
     viewMode: "unified",
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isIntro = currentIndex === -1;
   const chapter = isIntro ? null : review.chapters[currentIndex];
@@ -71,18 +76,28 @@ export function WalkthroughMode({
     };
   }, [review]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef<Map<number, number>>(new Map());
+
   const goTo = useCallback(
     (index: number, dir: "left" | "right") => {
       if (index < -1 || index >= review.chapters.length) return;
+      if (scrollRef.current) {
+        scrollPositions.current.set(currentIndex, scrollRef.current.scrollTop);
+      }
       setDirection(dir);
       setTransitioning(true);
       setShowDiff(false);
       setTimeout(() => {
         setCurrentIndex(index);
         setTransitioning(false);
+        if (scrollRef.current) {
+          const saved = scrollPositions.current.get(index);
+          scrollRef.current.scrollTop = saved ?? 0;
+        }
       }, 250);
     },
-    [review.chapters.length]
+    [review.chapters.length, currentIndex]
   );
 
   const goNext = useCallback(() => goTo(currentIndex + 1, "right"), [currentIndex, goTo]);
@@ -210,9 +225,9 @@ export function WalkthroughMode({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto walkthrough-scroll">
         <div
-          className={`max-w-4xl mx-auto px-8 py-12 transition-all duration-250 ${
+          className={`mx-auto px-8 py-12 transition-all duration-250 ${
             transitioning
               ? direction === "right"
                 ? "opacity-0 translate-x-8"
@@ -222,7 +237,7 @@ export function WalkthroughMode({
         >
           {isIntro ? (
             /* ── Intro / Landing slide ── */
-            <div className="flex flex-col items-center text-center">
+            <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
               <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-6">
                 <GitPullRequest className="w-8 h-8 text-indigo-400" />
               </div>
@@ -292,57 +307,86 @@ export function WalkthroughMode({
               </div>
             </div>
           ) : chapter ? (
-            /* ── Chapter slide ── */
-            <>
-              <div className="mb-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-6xl font-bold text-zinc-800 font-mono">
-                    {currentIndex + 1}
-                  </span>
-                </div>
-                <h2 className="text-3xl font-bold text-zinc-100 mb-2 leading-tight">
-                  {chapter.title}
-                </h2>
-                {chapter.connectionToPrevious && (
-                  <p className="text-base text-zinc-500 mt-3 pl-4 border-l-2 border-zinc-700 italic">
-                    {chapter.connectionToPrevious}
-                  </p>
-                )}
-              </div>
-
-              <p className="text-lg text-zinc-300 leading-relaxed mb-6 max-w-3xl">
-                {chapter.narrative}
-              </p>
-
-              {/* Files touched in this chapter */}
-              <div className="flex flex-wrap gap-1.5 mb-6">
-                {uniqueFiles.map((f) => (
-                  <span
-                    key={f}
-                    className="text-xs font-mono bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-zinc-500"
+            /* ── Chapter slide — two-column layout ── */
+            <div className="flex">
+              {/* Left: sticky narrative sidebar */}
+              <div className={`flex-shrink-0 sticky top-0 self-start border-r border-zinc-800/50 transition-all duration-300 ${
+                sidebarCollapsed ? "w-12" : "w-[380px] pr-6"
+              }`}>
+                {/* Collapsed state */}
+                <div className={`flex flex-col items-center pt-2 transition-opacity duration-200 ${
+                  sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none absolute inset-0"
+                }`}>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                    title="Show chapter info"
                   >
-                    {f.split("/").pop()}
-                  </span>
-                ))}
+                    <PanelLeftOpen className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-mono text-zinc-600 mt-2">{currentIndex + 1}</span>
+                </div>
+
+                {/* Expanded state */}
+                <div className={`transition-opacity duration-200 ${
+                  sidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
+                }`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <span className="text-6xl font-bold text-zinc-800 font-mono">
+                      {currentIndex + 1}
+                    </span>
+                    <button
+                      onClick={() => setSidebarCollapsed(true)}
+                      className="p-1.5 text-zinc-600 hover:text-zinc-300 rounded transition-colors mt-2"
+                      title="Collapse sidebar"
+                    >
+                      <PanelLeftClose className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <h2 className="text-2xl font-bold text-zinc-100 mb-2 leading-tight">
+                    {chapter.title}
+                  </h2>
+                  {chapter.connectionToPrevious && (
+                    <p className="text-sm text-zinc-500 mt-3 pl-4 border-l-2 border-zinc-700 italic">
+                      {chapter.connectionToPrevious}
+                    </p>
+                  )}
+
+                  <p className="text-sm text-zinc-300 leading-relaxed mt-4 mb-5">
+                    {chapter.narrative}
+                  </p>
+
+                  {/* Files touched */}
+                  <div className="flex flex-wrap gap-1.5 mb-5">
+                    {uniqueFiles.map((f) => (
+                      <span
+                        key={f}
+                        className="text-xs font-mono bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-zinc-500"
+                      >
+                        {f.split("/").pop()}
+                      </span>
+                    ))}
+                  </div>
+
+                  {chapter.safetyNotes && chapter.safetyNotes.length > 0 && (
+                    <div className="space-y-2">
+                      {chapter.safetyNotes.map((note, i) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-2 text-sm bg-green-500/5 border border-green-500/10 rounded-lg px-3 py-2"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                          <span className="text-green-300">{note}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {chapter.safetyNotes && chapter.safetyNotes.length > 0 && (
-                <div className="mb-6 space-y-2">
-                  {chapter.safetyNotes.map((note, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-2 text-sm bg-green-500/5 border border-green-500/10 rounded-lg px-4 py-3"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-green-300">{note}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Code diffs */}
+              {/* Right: code diffs */}
               <div
-                className={`space-y-3 transition-all duration-500 ${
+                className={`flex-1 min-w-0 pl-6 space-y-3 transition-all duration-500 ${
                   showDiff ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                 }`}
               >
@@ -357,18 +401,20 @@ export function WalkthroughMode({
                       fileName={hunk.file}
                       annotation={hunk.annotation}
                       settings={diffSettings}
+                      prInfo={review.prInfo}
+                      fileContent={fileContents?.[hunk.file]}
                     />
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           ) : null}
         </div>
       </div>
 
       {/* Bottom navigation */}
       <div className="border-t border-zinc-800/50 px-6 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="mx-auto flex items-center justify-between">
           <button
             onClick={goPrev}
             disabled={isFirst}
@@ -426,7 +472,7 @@ export function WalkthroughMode({
         </div>
 
         {/* Keyboard hints */}
-        <div className="max-w-4xl mx-auto flex items-center justify-center gap-4 mt-2 text-[10px] text-zinc-700">
+        <div className="mx-auto flex items-center justify-center gap-4 mt-2 text-[10px] text-zinc-700">
           <span><kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 font-mono">←→</kbd> navigate</span>
           {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 font-mono">space</kbd> review</span>}
           {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 font-mono">d</kbd> toggle diff</span>}

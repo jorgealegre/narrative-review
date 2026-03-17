@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import * as fs from "fs";
 import * as path from "path";
-import { fetchPRMetadata, fetchPRDiff, fetchPRComments } from "./github-api";
+import { fetchPRMetadata, fetchPRDiff, fetchPRComments, fetchFileContents, deletePreviousNarrativeComments, postNarrativeComment } from "./github-api";
 import { createCheckRun, completeCheckRun } from "./check-run";
 import { deployToPages } from "./deploy";
 import { parseDiff } from "../src/lib/diff-parser";
@@ -124,7 +124,24 @@ async function run(): Promise<void> {
       analyzedAt: new Date().toISOString(),
     };
 
-    const staticData: StaticReviewData = { review, comments: prComments };
+    // Fetch file contents for expand-context feature
+    const allFilePaths = [...new Set(chapters.flatMap((ch) => ch.hunks.map((h) => h.file)))];
+    const nonDeletedPaths = allFilePaths.filter((p) => {
+      const file = diff.files.find((f) => f.path === p);
+      return file?.status !== "removed";
+    });
+    let fileContents: Record<string, string> = {};
+    if (nonDeletedPaths.length > 0) {
+      try {
+        core.info(`Fetching file contents for ${nonDeletedPaths.length} files...`);
+        fileContents = await fetchFileContents(octokit, owner, repo, headSha, nonDeletedPaths);
+        core.info(`Fetched ${Object.keys(fileContents).length} file contents.`);
+      } catch (e) {
+        core.warning(`Failed to fetch file contents (non-fatal): ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
+    const staticData: StaticReviewData = { review, comments: prComments, fileContents };
 
     // Inject into HTML template
     const templatePath = path.join(__dirname, "template.html");
@@ -159,6 +176,18 @@ async function run(): Promise<void> {
       core.info(`Review URL: ${reviewUrl}`);
     } catch (e) {
       core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+    }
+
+    // Post PR comment with review link (clean up previous ones first)
+    if (reviewUrl) {
+      try {
+        const deleted = await deletePreviousNarrativeComments(octokit, owner, repo, prNumber);
+        if (deleted > 0) core.info(`Deleted ${deleted} previous narrative review comment(s).`);
+        await postNarrativeComment(octokit, owner, repo, prNumber, reviewUrl, chapters.length, diff.files.length);
+        core.info("Posted narrative review comment on PR.");
+      } catch (e) {
+        core.warning(`Failed to post PR comment (non-fatal): ${e instanceof Error ? e.message : e}`);
+      }
     }
 
     // Complete check run

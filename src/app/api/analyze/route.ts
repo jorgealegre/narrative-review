@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parsePRUrl, fetchPRMetadata, fetchPRDiff } from "@/lib/github";
+import { parsePRUrl, fetchPRMetadata, fetchPRDiff, fetchFileContents } from "@/lib/github";
 import { parseDiff } from "@/lib/diff-parser";
 import { analyzeNarrative } from "@/lib/analyzer";
 import {

@@ -34,9 +34,10 @@ interface ReviewContainerProps {
   fromCache?: boolean;
   onReanalyze?: () => void;
   mode?: "interactive" | "static";
+  fileContents?: Record<string, string>;
 }
 
-export function ReviewContainer({ review, fromCache, onReanalyze, mode = "interactive" }: ReviewContainerProps) {
+export function ReviewContainer({ review, fromCache, onReanalyze, mode = "interactive", fileContents }: ReviewContainerProps) {
   const isStatic = mode === "static";
   const { fancy } = useFancyMode();
   const isLocal = review.prInfo.number === 0;
@@ -532,6 +533,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 note={reviewState.notes[chapter.id] || ""}
                 onNoteChange={(n) => setNote(chapter.id, n)}
                 defaultExpanded={allExpanded}
+                fileContents={fileContents}
               />
             ))}
           </div>
@@ -571,6 +573,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
           onToggleReview={toggleChapter}
           onExit={() => setWalkthroughMode(false)}
           startChapterId={activeChapterId || undefined}
+          fileContents={fileContents}
         />
       )}
 

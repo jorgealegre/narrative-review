@@ -114,4 +114,5 @@ export interface PRComment {
 export interface StaticReviewData {
   review: NarrativeReview;
   comments: PRComment[];
+  fileContents?: Record<string, string>;
 }

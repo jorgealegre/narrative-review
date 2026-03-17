@@ -29,6 +29,7 @@ interface ChapterCardProps {
   note?: string;
   onNoteChange?: (note: string) => void;
   defaultExpanded?: boolean;
+  fileContents?: Record<string, string>;
 }
 
 export function ChapterCard({
@@ -45,6 +46,7 @@ export function ChapterCard({
   note,
   onNoteChange,
   defaultExpanded = true,
+  fileContents,
 }: ChapterCardProps) {
   const { fancy } = useFancyMode();
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -213,6 +215,7 @@ export function ChapterCard({
                     prInfo={prInfo}
                     settings={diffSettings}
                     onAskAbout={onAskAbout}
+                    fileContent={fileContents?.[hunk.file]}
                   />
                 ))}
               </div>

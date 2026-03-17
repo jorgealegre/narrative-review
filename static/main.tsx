@@ -8,7 +8,10 @@ function loadReviewData(): unknown {
   if (!el) return null;
   const b64 = (el.textContent || "").trim();
   if (!b64 || b64 === "%%REVIEW_DATA_B64%%") return null;
-  try { return JSON.parse(atob(b64)); } catch { return null; }
+  try {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return null; }
 }
 
 const data = loadReviewData();
@@ -19,7 +22,7 @@ if (!data) {
 } else {
   createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <StaticReviewApp data={data as { review: unknown; comments: unknown }} />
+      <StaticReviewApp data={data as Parameters<typeof StaticReviewApp>[0]["data"]} />
     </React.StrictMode>
   );
 }

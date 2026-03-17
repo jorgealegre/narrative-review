@@ -22,6 +22,31 @@ aside::-webkit-scrollbar-thumb {
   border-radius: 2px;
 }
 
+/* ── Walkthrough scrollbar ────────────────────────────────────── */
+
+.walkthrough-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #52525b #1c1c1f;
+}
+
+.walkthrough-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.walkthrough-scroll::-webkit-scrollbar-track {
+  background: #1c1c1f;
+}
+
+.walkthrough-scroll::-webkit-scrollbar-thumb {
+  background: #52525b;
+  border-radius: 5px;
+  border: 2px solid #1c1c1f;
+}
+
+.walkthrough-scroll::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}
+
 /* ── Base entrance animations ─────────────────────────────────── */
 
 @keyframes fade-in-up {

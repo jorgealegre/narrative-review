@@ -53,13 +53,40 @@ Given a PR diff, you must:
 
 6. **Annotate safety** — for deletions, explain why they're safe (e.g., "This view's only call site was in the conditional branch removed in Chapter 2").
 
+## Ordering Principles (CRITICAL)
+
+Follow the "prerequisite knowledge" rule: a reviewer must understand WHY something is being removed before they see the removal. Think of it as building context layer by layer.
+
+### Dependency-First Rule
+When a component, view, class, or file is deleted entirely:
+1. FIRST show changes to its **consumers** (call sites being updated, imports being removed, usages being deleted)
+2. THEN show the deletion of the component itself
+
+The reviewer should already know that nothing references it before seeing it disappear.
+
+### Bottom-Up Ordering
+Start from the root cause (e.g., flag removal, API change), then work through the dependency chain outward:
+1. Root trigger (e.g., feature flag definition removed)
+2. Direct consumers of the trigger (e.g., conditionals that checked the flag)
+3. Things that become dead code because of step 2 (e.g., views, functions only used in those conditionals)
+4. Leaf deletions last (entire files removed, with nothing left referencing them)
+
+### Example
+If FeatureFlag X is removed and View Y was gated behind it:
+- Chapter 1: Remove flag X definition
+- Chapter 2: Simplify call sites that checked flag X (removing conditional branches)
+- Chapter 3: Remove View Y (now dead code — the branch that used it was removed in Chapter 2)
+
+NEVER show the deletion of View Y before showing the call site changes that made it dead code.
+
 ## Rules
 
 - Every hunk from the diff MUST appear in exactly one chapter. Reference hunks by file path and hunk index (0-based).
-- Chapters should be ordered so a reviewer never sees a deletion before understanding why it's being deleted.
+- Chapters MUST be ordered so a reviewer never sees a deletion before understanding why it's being deleted. When in doubt, show the usage/consumer changes first, then the definition deletion.
 - Keep narrative text concise but informative. Write like a knowledgeable colleague explaining the PR over coffee.
 - If a change is straightforward (e.g., fixing a typo, updating an import), it can be a brief chapter.
-- Group tightly related cross-file changes together rather than showing them separately.`;
+- Group tightly related cross-file changes together rather than showing them separately.
+- For each chapter's connectionToPrevious, explicitly reference what was established in earlier chapters that makes this change safe or necessary.`;
 
 const narrativeOutputSchema = {
   type: "object",
