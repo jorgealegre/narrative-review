@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import * as fs from "fs";
 import * as path from "path";
-import { fetchPRMetadata, fetchPRDiff, fetchPRComments, fetchFileContents, deletePreviousNarrativeComments, postNarrativeComment } from "./github-api";
+import { fetchPRMetadata, fetchPRDiff, fetchPRComments, fetchFileContents, updatePRDescriptionWithNote } from "./github-api";
 import { createCheckRun, completeCheckRun } from "./check-run";
 import { deployToPages } from "./deploy";
 import { parseDiff } from "../src/lib/diff-parser";
@@ -178,15 +178,13 @@ async function run(): Promise<void> {
       core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
-    // Post PR comment with review link (clean up previous ones first)
+    // Update PR description with review note block
     try {
-      const deleted = await deletePreviousNarrativeComments(octokit, owner, repo, prNumber);
-      if (deleted > 0) core.info(`Deleted ${deleted} previous narrative review comment(s).`);
       const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-      await postNarrativeComment(octokit, owner, repo, prNumber, chapters.length, diff.files.length, reviewUrl || undefined, reviewUrl ? undefined : artifactUrl);
-      core.info("Posted narrative review comment on PR.");
+      await updatePRDescriptionWithNote(octokit, owner, repo, prNumber, headSha, chapters.length, diff.files.length, reviewUrl || undefined, reviewUrl ? undefined : artifactUrl);
+      core.info("Updated PR description with narrative review note.");
     } catch (e) {
-      core.warning(`Failed to post PR comment (non-fatal): ${e instanceof Error ? e.message : e}`);
+      core.warning(`Failed to update PR description (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
     // Complete check run
