@@ -6,6 +6,8 @@ import { X, Send, MessageCircle, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vs } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useTheme } from "@/hooks/useTheme";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -37,6 +39,7 @@ ${chapterSummaries}`;
 }
 
 export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPanelProps) {
+  const { isDark } = useTheme();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -143,22 +146,22 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
 
   return (
     <div
-      className={`flex-shrink-0 border-l border-zinc-800 bg-zinc-900 flex flex-col transition-[width] duration-300 ease-in-out sticky top-[73px] h-[calc(100vh-73px)] ${
+      className={`flex-shrink-0 border-l border-bd-primary bg-bg-secondary flex flex-col transition-[width] duration-300 ease-in-out sticky top-[73px] h-[calc(100vh-73px)] ${
         isOpen ? "w-[400px]" : "w-0 border-l-0 overflow-hidden"
       }`}
     >
       <div className={`flex flex-col h-full min-w-[400px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0"}`}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-bd-primary flex-shrink-0">
           <div className="flex items-center gap-2">
-            <MessageCircle className="w-4 h-4 text-indigo-400" />
-            <span className="text-sm font-medium text-zinc-200">
+            <MessageCircle className="w-4 h-4 text-accent-text" />
+            <span className="text-sm font-medium text-t-primary">
               Ask about this PR
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-zinc-800"
+            className="p-1.5 text-t-tertiary hover:text-t-secondary transition-colors rounded-lg hover:bg-bg-tertiary"
           >
             <X className="w-4 h-4" />
           </button>
@@ -168,8 +171,8 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-8">
-              <MessageCircle className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-              <p className="text-sm text-zinc-500 mb-4">
+              <MessageCircle className="w-8 h-8 text-bd-primary mx-auto mb-3" />
+              <p className="text-sm text-t-tertiary mb-4">
                 Ask anything about this PR
               </p>
               <div className="space-y-2">
@@ -184,7 +187,7 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
                       setInput(suggestion);
                       setTimeout(() => inputRef.current?.focus(), 0);
                     }}
-                    className="block w-full text-left text-xs bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-300 rounded-lg px-3 py-2 transition-colors"
+                    className="block w-full text-left text-xs bg-bg-tertiary/50 hover:bg-bg-tertiary text-t-tertiary hover:text-t-secondary rounded-lg px-3 py-2 transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -201,8 +204,8 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
               <div
                 className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-zinc-800 text-zinc-300"
+                    ? "bg-accent text-white"
+                    : "bg-bg-tertiary text-t-secondary"
                 }`}
               >
                 {msg.role === "assistant" ? (
@@ -211,11 +214,11 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
                       code: ({ children, className }) => {
                         const match = /language-(\w+)/.exec(className || "");
                         return match ? (
-                          <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" className="rounded my-1.5 text-xs">
+                          <SyntaxHighlighter style={isDark ? vscDarkPlus : vs} language={match[1]} PreTag="div" className="rounded my-1.5 text-xs">
                             {String(children).replace(/\n$/, "")}
                           </SyntaxHighlighter>
                         ) : (
-                          <code className="bg-zinc-900 text-indigo-300 rounded px-1 py-0.5 font-mono text-xs">
+                          <code className="bg-bg-secondary text-accent-text rounded px-1 py-0.5 font-mono text-xs">
                             {children}
                           </code>
                         );
@@ -230,7 +233,7 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
                 {msg.role === "assistant" && msg.content === "" && streaming && (
-                  <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-t-tertiary" />
                 )}
               </div>
             </div>
@@ -238,7 +241,7 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
         </div>
 
         {/* Input */}
-        <form onSubmit={handleSend} className="p-4 border-t border-zinc-800 flex-shrink-0">
+        <form onSubmit={handleSend} className="p-4 border-t border-bd-primary flex-shrink-0">
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -246,13 +249,13 @@ export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPane
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about the changes..."
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50"
+              className="flex-1 bg-bg-tertiary border border-bd-primary rounded-lg px-3 py-2 text-sm text-t-primary placeholder-t-tertiary focus:outline-none focus:border-accent/50"
               disabled={streaming}
             />
             <button
               type="submit"
               disabled={!input.trim() || streaming}
-              className="p-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white rounded-lg transition-colors"
+              className="p-2 bg-accent hover:bg-accent/80 disabled:bg-bd-primary disabled:text-t-tertiary text-white rounded-lg transition-colors"
             >
               <Send className="w-4 h-4" />
             </button>

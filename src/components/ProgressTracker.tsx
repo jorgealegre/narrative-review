@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CoverageResult, AnalysisMetrics } from "@/lib/types";
 import { ShieldCheck, AlertTriangle, Coins, BookOpen } from "lucide-react";
 import { useFancyMode } from "@/hooks/useFancyMode";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const MODEL_LABELS: Record<string, string> = {
   "claude-haiku-4-5-20251001": "Haiku 4.5",
@@ -36,15 +37,15 @@ export function ProgressTracker({
   return (
     <div className={`border-b sticky top-0 z-20 ${
       fancy
-        ? "border-indigo-500/10 bg-zinc-950/70 backdrop-blur-xl"
-        : "border-zinc-800 bg-zinc-950/50 backdrop-blur-sm"
+        ? "border-accent/10 bg-bg-primary/70 backdrop-blur-xl"
+        : "border-bd-primary bg-bg-primary/50 backdrop-blur-sm"
     }`}>
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="min-w-0 flex-1 mr-4 flex items-center gap-3">
             <Link
               href="/"
-              className="flex-shrink-0 text-zinc-500 hover:text-indigo-400 transition-colors"
+              className="flex-shrink-0 text-t-tertiary hover:text-accent-text transition-colors"
               title="Back to home"
             >
               <BookOpen className="w-5 h-5" />
@@ -54,12 +55,12 @@ export function ProgressTracker({
                 href={prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-lg font-semibold text-zinc-100 hover:text-indigo-400 transition-colors truncate"
+                className="text-lg font-semibold text-t-primary hover:text-accent-text transition-colors truncate"
               >
                 {prTitle}
               </a>
             ) : (
-              <span className="text-lg font-semibold text-zinc-100 truncate">
+              <span className="text-lg font-semibold text-t-primary truncate">
                 {prTitle}
               </span>
             )}
@@ -67,8 +68,8 @@ export function ProgressTracker({
           <div className="flex items-center gap-4 flex-shrink-0">
             {metrics && (
               <div className="flex items-center gap-1.5" title={`${metrics.inputTokens.toLocaleString()} input + ${metrics.outputTokens.toLocaleString()} output tokens · ${(metrics.durationMs / 1000).toFixed(1)}s`}>
-                <Coins className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="text-xs font-mono text-zinc-500">
+                <Coins className="w-3.5 h-3.5 text-t-tertiary" />
+                <span className="text-xs font-mono text-t-tertiary">
                   {MODEL_LABELS[metrics.model] || "Claude"} · ${metrics.cost.toFixed(3)}
                 </span>
               </div>
@@ -87,22 +88,23 @@ export function ProgressTracker({
                 {coverage.coveredHunks}/{coverage.totalHunks} hunks
               </span>
             </div>
-            <span className="text-sm text-zinc-400">
+            <span className="text-sm text-t-tertiary">
               {reviewedCount}/{totalChapters}
             </span>
             <span
               className={`text-sm font-bold ${
-                allReviewed ? "text-green-400" : "text-zinc-300"
+                allReviewed ? "text-green-400" : "text-t-secondary"
               }`}
             >
               {percentage}%
             </span>
+            <ThemeToggle />
           </div>
         </div>
-        <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="h-1 bg-bg-tertiary rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
-              allReviewed ? "bg-green-500" : "bg-indigo-500"
+              allReviewed ? "bg-green-500" : "bg-accent"
             } ${fancy && !allReviewed ? "fancy-progress-glow" : ""}`}
             style={{ width: `${percentage}%` }}
           />

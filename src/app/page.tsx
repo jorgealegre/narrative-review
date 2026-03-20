@@ -167,7 +167,7 @@ export default function Home() {
       ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col relative">
+    <div className="min-h-screen bg-bg-primary flex flex-col relative">
       {/* Fancy background layers */}
       {fancy && (
         <>
@@ -182,18 +182,18 @@ export default function Home() {
           {/* Logo / title */}
           <div className="text-center mb-12">
             <div className={`inline-flex items-center gap-3 mb-6 ${fancy ? "fancy-float" : ""}`}>
-              <BookOpen className={`w-12 h-12 ${fancy ? "text-indigo-400" : "text-indigo-500"}`} />
+              <BookOpen className={`w-12 h-12 ${fancy ? "text-accent-text" : "text-accent"}`} />
             </div>
             <h1
               className={`text-5xl font-bold mb-4 tracking-tight ${
-                fancy ? "fancy-gradient-text fancy-glow-text" : "text-zinc-100"
+                fancy ? "fancy-gradient-text fancy-glow-text" : "text-t-primary"
               }`}
             >
               Narrative Review
             </h1>
-            <p className={`text-lg max-w-md mx-auto leading-relaxed ${fancy ? "text-zinc-300" : "text-zinc-400"}`}>
+            <p className={`text-lg max-w-md mx-auto leading-relaxed ${fancy ? "text-t-secondary" : "text-t-tertiary"}`}>
               Code review as a story, not a file list. Understand{" "}
-              <em className={fancy ? "text-indigo-300" : "text-zinc-300"}>why</em> changes
+              <em className={fancy ? "text-accent-text" : "text-t-secondary"}>why</em> changes
               happened, in the order they make sense.
             </p>
           </div>
@@ -208,9 +208,9 @@ export default function Home() {
                     key={f.title}
                     className="fancy-glass rounded-xl px-4 py-3 text-center flex-1 max-w-[160px]"
                   >
-                    <Icon className="w-5 h-5 text-indigo-400 mx-auto mb-1.5" />
-                    <p className="text-xs font-medium text-zinc-200">{f.title}</p>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 leading-tight">{f.desc}</p>
+                    <Icon className="w-5 h-5 text-accent-text mx-auto mb-1.5" />
+                    <p className="text-xs font-medium text-t-primary">{f.title}</p>
+                    <p className="text-[10px] text-t-tertiary mt-0.5 leading-tight">{f.desc}</p>
                   </div>
                 );
               })}
@@ -222,12 +222,12 @@ export default function Home() {
             className={`rounded-2xl p-6 ${
               fancy
                 ? "fancy-glass fancy-border-glow"
-                : "bg-zinc-900/50 border border-zinc-800"
+                : "bg-bg-secondary/50 border border-bd-primary"
             }`}
           >
             {/* Source mode tabs */}
             <div className={`flex gap-1 rounded-lg p-0.5 mb-4 ${
-              fancy ? "bg-zinc-900/60 border border-zinc-800/50" : "bg-zinc-900 border border-zinc-800"
+              fancy ? "bg-bg-secondary/60 border border-bd-primary/50" : "bg-bg-secondary border border-bd-primary"
             }`}>
               <button
                 type="button"
@@ -235,9 +235,9 @@ export default function Home() {
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm transition-all ${
                   mode === "pr"
                     ? fancy
-                      ? "bg-indigo-500/15 text-indigo-300 shadow-sm"
-                      : "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                      ? "bg-accent-muted text-accent-text shadow-sm"
+                      : "bg-bg-tertiary text-t-primary"
+                    : "text-t-tertiary hover:text-t-secondary"
                 }`}
               >
                 <GitPullRequest className="w-4 h-4" />
@@ -249,9 +249,9 @@ export default function Home() {
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm transition-all ${
                   mode === "local"
                     ? fancy
-                      ? "bg-indigo-500/15 text-indigo-300 shadow-sm"
-                      : "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                      ? "bg-accent-muted text-accent-text shadow-sm"
+                      : "bg-bg-tertiary text-t-primary"
+                    : "text-t-tertiary hover:text-t-secondary"
                 }`}
               >
                 <FolderGit2 className="w-4 h-4" />
@@ -263,7 +263,7 @@ export default function Home() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === "pr" ? (
                 <div className="relative group">
-                  <GitPullRequest className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <GitPullRequest className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-t-tertiary" />
                   <input
                     type="text"
                     value={url}
@@ -272,10 +272,10 @@ export default function Home() {
                       setError("");
                     }}
                     placeholder="https://github.com/owner/repo/pull/123"
-                    className={`w-full rounded-xl pl-12 pr-4 py-4 text-zinc-100 placeholder-zinc-600 focus:outline-none transition-all text-lg ${
+                    className={`w-full rounded-xl pl-12 pr-4 py-4 text-t-primary placeholder-t-tertiary focus:outline-none transition-all text-lg ${
                       fancy
-                        ? "bg-zinc-900/60 border border-zinc-700/50 focus:border-indigo-500/50 focus:shadow-[0_0_20px_-5px_rgba(99,102,241,0.2)]"
-                        : "bg-zinc-900 border border-zinc-800 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50"
+                        ? "bg-bg-secondary/60 border border-bd-primary/50 focus:border-accent/50 focus:shadow-[0_0_20px_-5px_var(--th-fancy-glow)]"
+                        : "bg-bg-secondary border border-bd-primary focus:ring-2 focus:ring-accent/50 focus:border-accent/50"
                     }`}
                     autoFocus
                   />
@@ -283,7 +283,7 @@ export default function Home() {
               ) : (
                 <div className="space-y-3">
                   <div className="relative">
-                    <FolderGit2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <FolderGit2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-t-tertiary" />
                     <input
                       type="text"
                       value={repoPath}
@@ -292,33 +292,33 @@ export default function Home() {
                         setError("");
                       }}
                       placeholder="/Users/you/Developer/your-project"
-                      className={`w-full rounded-xl pl-12 pr-4 py-4 text-zinc-100 placeholder-zinc-600 focus:outline-none transition-all text-lg ${
+                      className={`w-full rounded-xl pl-12 pr-4 py-4 text-t-primary placeholder-t-tertiary focus:outline-none transition-all text-lg ${
                         fancy
-                          ? "bg-zinc-900/60 border border-zinc-700/50 focus:border-indigo-500/50 focus:shadow-[0_0_20px_-5px_rgba(99,102,241,0.2)]"
-                          : "bg-zinc-900 border border-zinc-800 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50"
+                          ? "bg-bg-secondary/60 border border-bd-primary/50 focus:border-accent/50 focus:shadow-[0_0_20px_-5px_var(--th-fancy-glow)]"
+                          : "bg-bg-secondary border border-bd-primary focus:ring-2 focus:ring-accent/50 focus:border-accent/50"
                       }`}
                       autoFocus
                     />
                     {loadingBranches && (
-                      <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 animate-spin" />
+                      <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-t-tertiary animate-spin" />
                     )}
                   </div>
 
                   {branches.length > 0 && (
                     <div className="flex gap-3">
                       <div className="flex-1 space-y-1">
-                        <label className="text-xs text-zinc-500 px-1">
+                        <label className="text-xs text-t-tertiary px-1">
                           Base (compare against)
                         </label>
                         <div className="relative">
-                          <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                          <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-t-tertiary" />
                           <select
                             value={baseBranch}
                             onChange={(e) => setBaseBranch(e.target.value)}
-                            className={`w-full rounded-lg pl-9 pr-3 py-2.5 text-sm text-zinc-200 focus:outline-none appearance-none ${
+                            className={`w-full rounded-lg pl-9 pr-3 py-2.5 text-sm text-t-primary focus:outline-none appearance-none ${
                               fancy
-                                ? "bg-zinc-900/60 border border-zinc-700/50 focus:border-indigo-500/50"
-                                : "bg-zinc-900 border border-zinc-800 focus:ring-2 focus:ring-indigo-500/50"
+                                ? "bg-bg-secondary/60 border border-bd-primary/50 focus:border-accent/50"
+                                : "bg-bg-secondary border border-bd-primary focus:ring-2 focus:ring-accent/50"
                             }`}
                           >
                             <option value="">auto-detect</option>
@@ -330,22 +330,22 @@ export default function Home() {
                           </select>
                         </div>
                       </div>
-                      <div className="flex items-end pb-2.5 text-zinc-700">
+                      <div className="flex items-end pb-2.5 text-t-tertiary">
                         <ArrowRight className="w-4 h-4" />
                       </div>
                       <div className="flex-1 space-y-1">
-                        <label className="text-xs text-zinc-500 px-1">
+                        <label className="text-xs text-t-tertiary px-1">
                           Head (your changes)
                         </label>
                         <div className="relative">
-                          <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                          <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-t-tertiary" />
                           <select
                             value={headBranch}
                             onChange={(e) => setHeadBranch(e.target.value)}
-                            className={`w-full rounded-lg pl-9 pr-3 py-2.5 text-sm text-zinc-200 focus:outline-none appearance-none ${
+                            className={`w-full rounded-lg pl-9 pr-3 py-2.5 text-sm text-t-primary focus:outline-none appearance-none ${
                               fancy
-                                ? "bg-zinc-900/60 border border-zinc-700/50 focus:border-indigo-500/50"
-                                : "bg-zinc-900 border border-zinc-800 focus:ring-2 focus:ring-indigo-500/50"
+                                ? "bg-bg-secondary/60 border border-bd-primary/50 focus:border-accent/50"
+                                : "bg-bg-secondary border border-bd-primary focus:ring-2 focus:ring-accent/50"
                             }`}
                           >
                             {branches.map((b) => (
@@ -360,11 +360,11 @@ export default function Home() {
                   )}
 
                   {currentBranch && (
-                    <p className="text-xs text-zinc-600 px-1">
+                    <p className="text-xs text-t-tertiary px-1">
                       Comparing{" "}
-                      <span className="text-zinc-400">{headBranch || currentBranch}</span>
+                      <span className="text-t-tertiary">{headBranch || currentBranch}</span>
                       {" "}against{" "}
-                      <span className="text-zinc-400">{baseBranch || "auto-detected base"}</span>
+                      <span className="text-t-tertiary">{baseBranch || "auto-detected base"}</span>
                     </p>
                   )}
                 </div>
@@ -383,11 +383,11 @@ export default function Home() {
                       className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
                         selected
                           ? fancy
-                            ? "border-indigo-500/40 bg-indigo-500/10 text-indigo-300 shadow-[0_0_16px_-4px_rgba(99,102,241,0.25)]"
-                            : "border-indigo-500/50 bg-indigo-500/10 text-indigo-300"
+                            ? "border-accent/40 bg-accent-muted text-accent-text shadow-[0_0_16px_-4px_var(--th-fancy-glow)]"
+                            : "border-accent/50 bg-accent-muted text-accent-text"
                           : fancy
-                            ? "border-zinc-800/50 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
-                            : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                            ? "border-bd-primary/50 bg-bg-secondary/40 text-t-tertiary hover:border-bd-primary hover:text-t-secondary"
+                            : "border-bd-primary bg-bg-secondary text-t-tertiary hover:border-bd-primary hover:text-t-secondary"
                       }`}
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
@@ -427,16 +427,16 @@ export default function Home() {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mx-auto mb-2 ${
                     fancy
-                      ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20"
-                      : "bg-zinc-800 text-zinc-400"
+                      ? "bg-accent-muted text-accent-text border border-accent/20"
+                      : "bg-bg-tertiary text-t-tertiary"
                   }`}
                 >
                   {item.step}
                 </div>
-                <p className={`text-sm font-medium ${fancy ? "text-zinc-200" : "text-zinc-300"}`}>
+                <p className={`text-sm font-medium ${fancy ? "text-t-primary" : "text-t-secondary"}`}>
                   {item.title}
                 </p>
-                <p className="text-zinc-600 text-xs mt-1">{item.desc}</p>
+                <p className="text-t-tertiary text-xs mt-1">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -445,15 +445,15 @@ export default function Home() {
             <div className="mt-16">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-zinc-600" />
-                  <h2 className="text-sm font-medium text-zinc-400">Recent reviews</h2>
+                  <Clock className="w-4 h-4 text-t-tertiary" />
+                  <h2 className="text-sm font-medium text-t-tertiary">Recent reviews</h2>
                 </div>
                 <button
                   onClick={() => {
                     clearHistory();
                     setHistory([]);
                   }}
-                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                  className="text-xs text-t-tertiary hover:text-t-tertiary transition-colors flex items-center gap-1"
                 >
                   <Trash2 className="w-3 h-3" />
                   Clear
@@ -465,23 +465,23 @@ export default function Home() {
                     key={entry.id}
                     className={`group flex items-center gap-3 rounded-lg px-4 py-3 cursor-pointer transition-all ${
                       fancy
-                        ? "bg-zinc-900/40 border border-zinc-800/40 hover:border-indigo-500/20 hover:bg-zinc-900/60"
-                        : "bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700"
+                        ? "bg-bg-secondary/40 border border-bd-primary/40 hover:border-accent/20 hover:bg-bg-secondary/60"
+                        : "bg-bg-secondary/50 border border-bd-primary hover:border-bd-primary"
                     }`}
                     onClick={() => router.push(entry.url)}
                   >
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      entry.source === "pr" ? "bg-indigo-500/15" : "bg-emerald-500/15"
+                      entry.source === "pr" ? "bg-accent-muted" : "bg-emerald-500/15"
                     }`}>
                       {entry.source === "pr" ? (
-                        <GitPullRequest className="w-3.5 h-3.5 text-indigo-400" />
+                        <GitPullRequest className="w-3.5 h-3.5 text-accent-text" />
                       ) : (
                         <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-zinc-200 truncate">{entry.title}</p>
-                      <p className="text-xs text-zinc-600 truncate">
+                      <p className="text-sm text-t-primary truncate">{entry.title}</p>
+                      <p className="text-xs text-t-tertiary truncate">
                         {entry.label} &middot; {entry.chapters} chapters &middot; {new Date(entry.analyzedAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -491,7 +491,7 @@ export default function Home() {
                         removeFromHistory(entry.id);
                         setHistory((h) => h.filter((x) => x.id !== entry.id));
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-zinc-400 transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-1 text-t-tertiary hover:text-t-tertiary transition-all"
                       title="Remove from history"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -505,7 +505,7 @@ export default function Home() {
       </main>
 
       <footer className="py-4 text-center relative z-10">
-        <p className="text-zinc-700 text-xs">
+        <p className="text-t-tertiary text-xs">
           Powered by Claude &middot; Diffs via {mode === "pr" ? "gh CLI" : "local git"}
         </p>
       </footer>

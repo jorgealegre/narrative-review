@@ -14,9 +14,11 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useFancyMode } from "@/hooks/useFancyMode";
+import { useTheme } from "@/hooks/useTheme";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vs } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface ChapterCardProps {
   chapter: Chapter;
@@ -52,16 +54,17 @@ export function ChapterCard({
   fileContents,
 }: ChapterCardProps) {
   const { fancy } = useFancyMode();
+  const { isDark } = useTheme();
 
   const mdComponents = {
     code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
       const match = /language-(\w+)/.exec(className || "");
       return match ? (
-        <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" className="rounded my-1.5 text-xs">
+        <SyntaxHighlighter style={isDark ? vscDarkPlus : vs} language={match[1]} PreTag="div" className="rounded my-1.5 text-xs">
           {String(children).replace(/\n$/, "")}
         </SyntaxHighlighter>
       ) : (
-        <code className="bg-zinc-900 text-indigo-300 rounded px-1 py-0.5 font-mono text-xs">
+        <code className="bg-bg-secondary text-accent-text rounded px-1 py-0.5 font-mono text-xs">
           {children}
         </code>
       );
@@ -86,11 +89,11 @@ export function ChapterCard({
       } ${
         isActive
           ? fancy
-            ? "border-indigo-500/40 shadow-lg shadow-indigo-500/10 bg-zinc-900/30"
-            : "border-indigo-500/50 shadow-lg shadow-indigo-500/10"
+            ? "border-accent/40 shadow-lg shadow-accent/10 bg-bg-secondary/30"
+            : "border-accent/50 shadow-lg shadow-accent/10"
           : fancy
-            ? "border-zinc-800/60 bg-zinc-950/50"
-            : "border-zinc-800"
+            ? "border-bd-primary/60 bg-bg-primary/50"
+            : "border-bd-primary"
       } ${isUncategorized ? "border-amber-500/30" : ""} ${
         isReviewed ? "opacity-75" : ""
       }`}
@@ -107,7 +110,7 @@ export function ChapterCard({
                 ? "bg-amber-500/20 text-amber-400"
                 : isReviewed
                 ? "bg-green-500/20 text-green-400"
-                : "bg-indigo-500/20 text-indigo-400"
+                : "bg-accent/20 text-accent-text"
             }`}
           >
             {isUncategorized ? "!" : index + 1}
@@ -115,17 +118,17 @@ export function ChapterCard({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-zinc-100">
+              <h3 className="text-lg font-semibold text-t-primary">
                 {chapter.title}
               </h3>
-              <span className="text-xs text-zinc-500 flex-shrink-0">
+              <span className="text-xs text-t-tertiary flex-shrink-0">
                 {chapter.hunks.length} change{chapter.hunks.length !== 1 ? "s" : ""}
               </span>
             </div>
 
             {/* Connection to previous */}
             {chapter.connectionToPrevious && (
-              <div className="text-sm text-zinc-500 mb-3 pl-3 border-l-2 border-zinc-700">
+              <div className="text-sm text-t-tertiary mb-3 pl-3 border-l-2 border-bd-primary">
                 <ReactMarkdown components={mdComponents}>
                   {chapter.connectionToPrevious}
                 </ReactMarkdown>
@@ -134,7 +137,7 @@ export function ChapterCard({
 
             {/* Narrative */}
             <div className="group/narrative mb-4">
-              <div className="text-sm text-zinc-300 leading-relaxed">
+              <div className="text-sm text-t-secondary leading-relaxed">
                 <ReactMarkdown components={mdComponents}>
                   {chapter.narrative}
                 </ReactMarkdown>
@@ -147,7 +150,7 @@ export function ChapterCard({
                       `Regarding chapter "${chapter.title}": ${chapter.narrative}\n\nCan you expand on this explanation? What exactly is happening here and why?`
                     );
                   }}
-                  className="mt-2 flex items-center gap-1.5 text-xs text-zinc-600 hover:text-indigo-400 transition-colors opacity-0 group-hover/narrative:opacity-100"
+                  className="mt-2 flex items-center gap-1.5 text-xs text-t-tertiary hover:text-accent-text transition-colors opacity-0 group-hover/narrative:opacity-100"
                 >
                   <MessageCircle className="w-3 h-3" />
                   Ask about this
@@ -189,7 +192,7 @@ export function ChapterCard({
                   e.stopPropagation();
                   setExpanded(!expanded);
                 }}
-                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="flex items-center gap-1.5 text-sm text-t-tertiary hover:text-t-primary transition-colors"
               >
                 {expanded ? (
                   <ChevronDown className="w-4 h-4" />
@@ -205,7 +208,7 @@ export function ChapterCard({
                     setNoteOpen(!noteOpen);
                   }}
                   className={`flex items-center gap-1.5 text-sm transition-colors ${
-                    note ? "text-amber-400 hover:text-amber-300" : "text-zinc-500 hover:text-zinc-300"
+                    note ? "text-amber-400 hover:text-amber-300" : "text-t-tertiary hover:text-t-secondary"
                   }`}
                 >
                   <StickyNote className="w-3.5 h-3.5" />
@@ -221,7 +224,7 @@ export function ChapterCard({
                   value={note || ""}
                   onChange={(e) => onNoteChange(e.target.value)}
                   placeholder="Your notes on this chapter..."
-                  className="w-full bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500/40 resize-none"
+                  className="w-full bg-bg-secondary/60 border border-bd-primary/50 rounded-lg px-3 py-2 text-sm text-t-primary placeholder-t-tertiary focus:outline-none focus:border-amber-500/40 resize-none"
                   rows={2}
                 />
               </div>
@@ -255,13 +258,13 @@ export function ChapterCard({
               e.stopPropagation();
               onToggleReview();
             }}
-            className="flex-shrink-0 p-1 hover:bg-zinc-800 rounded-lg transition-colors"
+            className="flex-shrink-0 p-1 hover:bg-bg-tertiary rounded-lg transition-colors"
             title={isReviewed ? "Mark as unreviewed" : "Mark as reviewed"}
           >
             {isReviewed ? (
               <CheckCircle2 className="w-6 h-6 text-green-400 animate-scale-check" />
             ) : (
-              <Circle className="w-6 h-6 text-zinc-600 hover:text-zinc-400 transition-colors" />
+              <Circle className="w-6 h-6 text-t-tertiary hover:text-t-tertiary transition-colors" />
             )}
           </button>
         </div>

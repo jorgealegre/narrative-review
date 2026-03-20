@@ -217,7 +217,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative">
+    <div className="min-h-screen bg-bg-primary text-t-primary relative">
       {fancy && (
         <>
           <div className="fancy-aurora" />
@@ -237,7 +237,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
       <div className="flex">
         {/* Sidebar */}
         <aside
-          className={`flex-shrink-0 border-r border-zinc-800 sticky top-[73px] h-[calc(100vh-73px)] transition-[width,opacity] duration-300 ease-in-out ${
+          className={`flex-shrink-0 border-r border-bd-primary sticky top-[73px] h-[calc(100vh-73px)] transition-[width,opacity] duration-300 ease-in-out ${
             sidebarCollapsed ? "w-12" : "w-80"
           }`}
         >
@@ -245,15 +245,15 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
           <div className={`flex flex-col items-center gap-1 py-3 transition-opacity duration-200 ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none absolute inset-0"}`}>
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              className="p-2 text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary rounded-lg transition-colors"
               title="Expand sidebar"
             >
               <PanelLeftOpen className="w-4 h-4" />
             </button>
-            <div className="w-5 border-t border-zinc-800 my-1" />
+            <div className="w-5 border-t border-bd-primary my-1" />
             <button
               onClick={() => setWalkthroughMode(true)}
-              className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+              className="p-2 text-accent-text hover:text-accent-text hover:bg-accent-muted rounded-lg transition-colors"
               title="Guided walkthrough"
             >
               <Play className="w-4 h-4" />
@@ -261,7 +261,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             {!isStatic && (
               <button
                 onClick={() => setChatOpen((s) => !s)}
-                className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                className="p-2 text-accent-text hover:text-accent-text hover:bg-accent-muted rounded-lg transition-colors"
                 title="Ask about this PR"
               >
                 <MessageCircle className="w-4 h-4" />
@@ -272,7 +272,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 href={prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                className="p-2 text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 title="View on GitHub"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -284,10 +284,10 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
           <div className={`h-full flex flex-col overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
             {/* Header with collapse button */}
             <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
-              <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Chapters</span>
+              <span className="text-xs text-t-tertiary uppercase tracking-wider font-semibold">Chapters</span>
               <button
                 onClick={() => setSidebarCollapsed(true)}
-                className="p-1 text-zinc-600 hover:text-zinc-300 rounded transition-colors"
+                className="p-1 text-t-tertiary hover:text-t-secondary rounded transition-colors"
                 title="Collapse sidebar"
               >
                 <PanelLeftClose className="w-4 h-4" />
@@ -298,7 +298,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             <div className="px-3 pb-3 flex-shrink-0 space-y-1.5">
               <button
                 onClick={() => setWalkthroughMode(true)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-muted border border-accent/20 text-accent-text hover:bg-accent/20 hover:border-accent/30 transition-colors"
               >
                 <Play className="w-4 h-4" />
                 Guided Walkthrough
@@ -307,7 +307,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 {!isStatic && (
                   <button
                     onClick={() => setChatOpen((s) => !s)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-bg-tertiary/80 border border-bd-primary/50 text-t-secondary hover:bg-bg-tertiary hover:border-t-tertiary transition-colors"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     Ask AI
@@ -318,7 +318,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                     href={prUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-zinc-800/80 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-bg-tertiary/80 border border-bd-primary/50 text-t-secondary hover:bg-bg-tertiary hover:border-t-tertiary transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     GitHub
@@ -346,12 +346,12 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             </div>
 
             {/* Secondary actions & approval */}
-            <div className="flex-shrink-0 border-t border-zinc-800 px-3 py-3 space-y-2">
+            <div className="flex-shrink-0 border-t border-bd-primary px-3 py-3 space-y-2">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {onReanalyze && (
                   <button
                     onClick={onReanalyze}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 transition-colors"
                   >
                     <RefreshCw className="w-3 h-3" />
                     Re-analyze{fromCache ? " (cached)" : ""}
@@ -359,14 +359,14 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 )}
                 <button
                   onClick={handleExportMarkdown}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 transition-colors"
                 >
                   <Download className="w-3 h-3" />
                   Export
                 </button>
                 <button
                   onClick={() => setShowShortcuts((s) => !s)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 transition-colors"
                 >
                   <Keyboard className="w-3 h-3" />
                   Keys
@@ -394,7 +394,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                         className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
                           allReviewed
                             ? "bg-green-600 hover:bg-green-500 text-white"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                            : "bg-bg-tertiary text-t-tertiary cursor-not-allowed"
                         }`}
                         title={allReviewed ? "Approve this PR" : "Review all chapters first"}
                       >
@@ -404,7 +404,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                       <button
                         onClick={handleRequestChanges}
                         disabled={approvalState === "loading"}
-                        className="flex-1 py-1.5 px-2 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1.5"
+                        className="flex-1 py-1.5 px-2 rounded-lg text-xs text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary transition-colors flex items-center justify-center gap-1.5"
                       >
                         <MessageSquareWarning className="w-3 h-3" />
                         Changes
@@ -421,11 +421,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
 
               {/* Local branch info */}
               {isLocal && (
-                <p className="text-[10px] text-zinc-600 px-1">
+                <p className="text-[10px] text-t-tertiary px-1">
                   Local &middot;{" "}
-                  <span className="text-zinc-400">{review.prInfo.headRef}</span>
+                  <span className="text-t-tertiary">{review.prInfo.headRef}</span>
                   {" "}vs{" "}
-                  <span className="text-zinc-400">{review.prInfo.baseRef}</span>
+                  <span className="text-t-tertiary">{review.prInfo.baseRef}</span>
                 </p>
               )}
             </div>
@@ -440,20 +440,20 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             className={`mb-8 p-5 rounded-xl ${
               fancy
                 ? "fancy-glass fancy-border-glow"
-                : "bg-zinc-900/50 border border-zinc-800"
+                : "bg-bg-secondary/50 border border-bd-primary"
             }`}
           >
-            <p className="text-lg text-zinc-200 leading-relaxed mb-4">{review.summary}</p>
+            <p className="text-lg text-t-primary leading-relaxed mb-4">{review.summary}</p>
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-2 h-2 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
+              <div className="w-2 h-2 rounded-full bg-accent mt-2 flex-shrink-0" />
               <div>
-                <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-1">
+                <h2 className="text-sm font-semibold text-t-secondary uppercase tracking-wider mb-1">
                   Root Cause
                 </h2>
-                <p className="text-zinc-300 text-sm">{review.rootCause}</p>
+                <p className="text-t-secondary text-sm">{review.rootCause}</p>
               </div>
             </div>
-            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-zinc-800/50 text-xs text-zinc-500">
+            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-bd-subtle/50 text-xs text-t-tertiary">
               {review.prInfo.author && <span>by {review.prInfo.author}</span>}
               <span>{review.prInfo.changedFiles} files changed</span>
               <span className="text-green-500/70">+{review.prInfo.additions}</span>
@@ -464,7 +464,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
 
           {/* Diff settings toolbar */}
           <div className="flex items-center justify-between mb-4 px-1">
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-bg-secondary border border-bd-primary rounded-lg p-0.5">
               {([
                 { mode: "unified" as DiffViewMode, icon: AlignJustify, label: "Unified" },
                 { mode: "compact" as DiffViewMode, icon: Rows3, label: "Compact" },
@@ -475,8 +475,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                   onClick={() => setDiffSettings((s) => ({ ...s, viewMode: mode }))}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
                     diffSettings.viewMode === mode
-                      ? "bg-zinc-800 text-zinc-200"
-                      : "text-zinc-500 hover:text-zinc-300"
+                      ? "bg-bg-tertiary text-t-primary"
+                      : "text-t-tertiary hover:text-t-secondary"
                   }`}
                   title={label}
                 >
@@ -488,7 +488,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setAllExpanded((s) => !s)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border bg-bg-secondary border-bd-primary text-t-tertiary hover:text-t-secondary hover:border-bd-primary transition-colors"
               >
                 {allExpanded ? (
                   <ChevronsDownUp className="w-3.5 h-3.5" />
@@ -501,8 +501,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 onClick={() => setDiffSettings((s) => ({ ...s, hideWhitespace: !s.hideWhitespace }))}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
                   diffSettings.hideWhitespace
-                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                    ? "bg-accent-muted border-accent/30 text-accent-text"
+                    : "bg-bg-secondary border-bd-primary text-t-tertiary hover:text-t-secondary hover:border-bd-primary"
                 }`}
               >
                 {diffSettings.hideWhitespace ? (
@@ -544,7 +544,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
               <p className="text-green-400 text-lg font-semibold">
                 All chapters reviewed
               </p>
-              <p className="text-zinc-500 text-sm mt-1">
+              <p className="text-t-tertiary text-sm mt-1">
                 {isStatic ? "Review complete." : "You can now approve the PR from the sidebar."}
               </p>
             </div>
@@ -584,7 +584,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
           onClick={() => setShowShortcuts(false)}
         >
           <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm"
+            className="bg-bg-secondary border border-bd-primary rounded-xl p-6 max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-4">Keyboard Shortcuts</h3>
@@ -597,10 +597,10 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 ["?", "Toggle this help"],
               ].map(([key, desc]) => (
                 <div key={key} className="flex items-center gap-3">
-                  <kbd className="bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-xs font-mono text-zinc-300 min-w-[2rem] text-center">
+                  <kbd className="bg-bg-tertiary border border-bd-primary rounded px-2 py-0.5 text-xs font-mono text-t-secondary min-w-[2rem] text-center">
                     {key}
                   </kbd>
-                  <span className="text-zinc-400">{desc}</span>
+                  <span className="text-t-tertiary">{desc}</span>
                 </div>
               ))}
             </div>
@@ -611,12 +611,12 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
       {/* Celebration overlay */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-          <div className="animate-celebrate bg-zinc-900/90 border border-green-500/30 rounded-2xl px-8 py-6 text-center shadow-2xl shadow-green-500/10">
+          <div className="animate-celebrate bg-bg-secondary/90 border border-green-500/30 rounded-2xl px-8 py-6 text-center shadow-2xl shadow-green-500/10">
             <div className="text-4xl mb-3">&#x2705;</div>
             <h3 className="text-xl font-bold text-green-400 mb-1">
               All chapters reviewed!
             </h3>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-t-tertiary">
               Ready to approve this PR
             </p>
           </div>

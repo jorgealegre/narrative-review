@@ -149,8 +149,8 @@ function ReviewContent() {
 
   if (!prUrl && !isLocal) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <p className="text-zinc-500">
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <p className="text-t-tertiary">
           No source provided. Go back and enter a PR URL or repo path.
         </p>
       </div>
@@ -179,7 +179,7 @@ function ReviewContent() {
     const stepIcons = [GitPullRequest, Brain, ShieldCheck];
 
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center relative">
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center relative">
         {fancy && (
           <>
             <div className="fancy-aurora" />
@@ -187,7 +187,7 @@ function ReviewContent() {
           </>
         )}
         <div className="relative z-10 w-full max-w-sm px-6">
-          <Loader2 className={`w-10 h-10 animate-spin mx-auto mb-8 ${fancy ? "text-indigo-400" : "text-indigo-500"}`} />
+          <Loader2 className={`w-10 h-10 animate-spin mx-auto mb-8 ${fancy ? "text-accent-text" : "text-accent"}`} />
 
           <div className="space-y-3">
             {steps.map((step, i) => {
@@ -201,10 +201,10 @@ function ReviewContent() {
                     isActive
                       ? fancy
                         ? "fancy-glass fancy-border-glow"
-                        : "bg-zinc-900 border border-indigo-500/30"
+                        : "bg-bg-secondary border border-accent/30"
                       : isDone
-                        ? "bg-zinc-900/30 border border-zinc-800/50"
-                        : "bg-zinc-900/20 border border-zinc-800/30"
+                        ? "bg-bg-secondary/30 border border-bd-primary/50"
+                        : "bg-bg-secondary/20 border border-bd-primary/30"
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -212,22 +212,22 @@ function ReviewContent() {
                       ? "bg-green-500/20"
                       : isActive
                         ? "bg-indigo-500/20"
-                        : "bg-zinc-800/50"
+                        : "bg-bg-tertiary/50"
                   }`}>
                     {isDone ? (
                       <Check className="w-3.5 h-3.5 text-green-400" />
                     ) : isActive ? (
-                      <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 text-accent-text animate-spin" />
                     ) : (
-                      <Icon className="w-3.5 h-3.5 text-zinc-600" />
+                      <Icon className="w-3.5 h-3.5 text-t-tertiary" />
                     )}
                   </div>
                   <span className={`text-sm ${
                     isDone
-                      ? "text-zinc-500"
+                      ? "text-t-tertiary"
                       : isActive
-                        ? "text-zinc-200 font-medium"
-                        : "text-zinc-600"
+                        ? "text-t-primary font-medium"
+                        : "text-t-tertiary"
                   }`}>
                     {step.label}
                   </span>
@@ -236,7 +236,7 @@ function ReviewContent() {
             })}
           </div>
 
-          <p className="text-zinc-600 text-xs mt-6 text-center">
+          <p className="text-t-tertiary text-xs mt-6 text-center">
             This may take 30–60 seconds for large diffs
           </p>
         </div>
@@ -246,15 +246,15 @@ function ReviewContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="text-center max-w-md">
           <p className="text-red-400 text-lg font-medium mb-2">
             Analysis Failed
           </p>
-          <p className="text-zinc-400 text-sm mb-4">{error}</p>
+          <p className="text-t-tertiary text-sm mb-4">{error}</p>
           <button
             onClick={handleReanalyze}
-            className="text-indigo-400 hover:text-indigo-300 text-sm underline"
+            className="text-accent-text hover:text-accent-text text-sm underline"
           >
             Try again
           </button>
@@ -278,8 +278,8 @@ export default function ReviewPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+        <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
         </div>
       }
     >

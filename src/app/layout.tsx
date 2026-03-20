@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FancyModeProvider } from "@/hooks/useFancyMode";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { FancyModeToggle } from "@/components/FancyModeToggle";
 import "./globals.css";
 
@@ -26,13 +27,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('narrative-review:theme');if(t==='light')document.documentElement.classList.remove('dark')}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-bg-primary transition-colors`}
       >
-        <FancyModeProvider>
-          {children}
-          <FancyModeToggle />
-        </FancyModeProvider>
+        <ThemeProvider>
+          <FancyModeProvider>
+            {children}
+            <FancyModeToggle />
+          </FancyModeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

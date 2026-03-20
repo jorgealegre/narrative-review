@@ -25,7 +25,7 @@ export function ChapterTimeline({
   return (
     <nav className="relative">
       {/* Connecting line */}
-      <div className="absolute left-[21px] top-4 bottom-4 w-px bg-zinc-800" />
+      <div className="absolute left-[21px] top-4 bottom-4 w-px bg-bg-tertiary" />
 
       <div className="space-y-0.5 relative">
         {/* Overview / Chapter 0 */}
@@ -33,26 +33,26 @@ export function ChapterTimeline({
           onClick={onSelectOverview}
           className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg text-left transition-all text-sm relative ${
             overviewActive
-              ? "bg-zinc-800/80 text-zinc-100"
-              : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-300"
+              ? "bg-bg-tertiary/80 text-t-primary"
+              : "text-t-tertiary hover:bg-bg-tertiary/40 hover:text-t-secondary"
           }`}
         >
-          <div className="flex-shrink-0 mt-0.5 z-10 bg-zinc-950 rounded-full">
+          <div className="flex-shrink-0 mt-0.5 z-10 bg-bg-primary rounded-full">
             {overviewActive ? (
-              <BookOpen className="w-4 h-4 text-indigo-400" />
+              <BookOpen className="w-4 h-4 text-accent-text" />
             ) : (
-              <BookOpen className="w-4 h-4 text-zinc-600" />
+              <BookOpen className="w-4 h-4 text-t-tertiary" />
             )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xs font-mono flex-shrink-0 text-zinc-500">0</span>
+              <span className="text-xs font-mono flex-shrink-0 text-t-tertiary">0</span>
               <span className="font-medium leading-tight">Overview</span>
             </div>
-            <p className="text-xs text-zinc-600 leading-relaxed mt-1 line-clamp-2">
+            <p className="text-xs text-t-tertiary leading-relaxed mt-1 line-clamp-2">
               {review.rootCause}
             </p>
-            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-zinc-600">
+            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-t-tertiary">
               <span>{review.prInfo.changedFiles} files</span>
               <span className="text-green-600">+{review.prInfo.additions}</span>
               <span className="text-red-600">−{review.prInfo.deletions}</span>
@@ -74,26 +74,26 @@ export function ChapterTimeline({
               onClick={() => onSelectChapter(chapter.id)}
               className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg text-left transition-all text-sm relative ${
                 isActive
-                  ? "bg-zinc-800/80 text-zinc-100"
-                  : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-300"
+                  ? "bg-bg-tertiary/80 text-t-primary"
+                  : "text-t-tertiary hover:bg-bg-tertiary/40 hover:text-t-secondary"
               }`}
             >
-              <div className="flex-shrink-0 mt-0.5 z-10 bg-zinc-950 rounded-full">
+              <div className="flex-shrink-0 mt-0.5 z-10 bg-bg-primary rounded-full">
                 {reviewed ? (
                   <CheckCircle2 className="w-4 h-4 text-green-400" />
                 ) : isUncategorized ? (
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
                 ) : isActive ? (
-                  <Circle className="w-4 h-4 text-indigo-400 fill-indigo-400/20" />
+                  <Circle className="w-4 h-4 text-accent-text fill-accent-text/20" />
                 ) : (
-                  <Circle className="w-4 h-4 text-zinc-600" />
+                  <Circle className="w-4 h-4 text-t-tertiary" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span
                     className={`text-xs font-mono flex-shrink-0 ${
-                      isUncategorized ? "text-amber-500" : "text-zinc-500"
+                      isUncategorized ? "text-amber-500" : "text-t-tertiary"
                     }`}
                   >
                     {isUncategorized ? "!" : i + 1}
@@ -102,7 +102,7 @@ export function ChapterTimeline({
                     {chapter.title}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-600 leading-relaxed mt-1 line-clamp-2">
+                <p className="text-xs text-t-tertiary leading-relaxed mt-1 line-clamp-2">
                   {narrativePreview}
                   {chapter.narrative.length > 80 ? "..." : ""}
                 </p>
@@ -110,14 +110,14 @@ export function ChapterTimeline({
                   {uniqueFiles.slice(0, 3).map((f) => (
                     <span
                       key={f}
-                      className="inline-flex items-center gap-1 text-[10px] bg-zinc-800/60 text-zinc-500 rounded px-1.5 py-0.5"
+                      className="inline-flex items-center gap-1 text-[10px] bg-bg-tertiary/60 text-t-tertiary rounded px-1.5 py-0.5"
                     >
                       <FileCode className="w-2.5 h-2.5" />
                       {f.split("/").pop()}
                     </span>
                   ))}
                   {uniqueFiles.length > 3 && (
-                    <span className="text-[10px] text-zinc-600 px-1 py-0.5">
+                    <span className="text-[10px] text-t-tertiary px-1 py-0.5">
                       +{uniqueFiles.length - 3}
                     </span>
                   )}

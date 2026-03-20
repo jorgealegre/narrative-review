@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { DiffSettings, PRComment } from "@/lib/types";
 import hljs from "highlight.js/lib/common";
-import "highlight.js/styles/github-dark-dimmed.css";
+import "highlight.js/styles/github.css";
 
 function getLanguage(fileName: string): string {
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
@@ -208,12 +208,12 @@ function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
   const [text, setText] = useState("");
 
   return (
-    <div className="bg-zinc-800/80 border border-zinc-700 rounded-lg mx-4 my-1 p-3">
+    <div className="bg-bg-tertiary/80 border border-bd-primary rounded-lg mx-4 my-1 p-3">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Write a comment..."
-        className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 resize-none"
+        className="w-full bg-bg-secondary border border-bd-primary rounded px-3 py-2 text-sm text-t-primary placeholder-t-tertiary focus:outline-none focus:border-accent/50 resize-none"
         rows={3}
         autoFocus
         disabled={loading}
@@ -221,7 +221,7 @@ function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
       <div className="flex items-center justify-end gap-2 mt-2">
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="px-3 py-1.5 text-xs text-t-tertiary hover:text-t-secondary transition-colors"
           disabled={loading}
         >
           Cancel
@@ -229,7 +229,7 @@ function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
         <button
           onClick={() => text.trim() && onSubmit(text.trim())}
           disabled={!text.trim() || loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white rounded transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-accent hover:bg-accent/80 disabled:bg-bg-tertiary disabled:text-t-tertiary text-white rounded transition-colors"
         >
           {loading ? (
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -245,14 +245,14 @@ function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
 
 function InlineComment({ comment }: { comment: PRComment }) {
   return (
-    <div className="bg-zinc-800/60 border-l-2 border-indigo-500/50 mx-4 my-1 px-3 py-2 rounded-r-lg">
+    <div className="bg-bg-tertiary/60 border-l-2 border-accent/50 mx-4 my-1 px-3 py-2 rounded-r-lg">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-medium text-indigo-300">{comment.author}</span>
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs font-medium text-accent-text">{comment.author}</span>
+        <span className="text-xs text-t-tertiary">
           {new Date(comment.createdAt).toLocaleDateString()}
         </span>
       </div>
-      <p className="text-xs text-zinc-300 whitespace-pre-wrap">{comment.body}</p>
+      <p className="text-xs text-t-secondary whitespace-pre-wrap">{comment.body}</p>
     </div>
   );
 }
@@ -379,12 +379,12 @@ function UnifiedDiffLines({
     const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
 
     let bg = "";
-    let textColor = "text-zinc-400";
+    let textColor = "text-t-tertiary";
     if (isDemoted) {
       // ws-only
-    } else if (type === "add") { bg = "bg-green-950/40"; textColor = "text-green-300"; }
-    else if (type === "remove") { bg = "bg-red-950/40"; textColor = "text-red-300"; }
-    else if (type === "header") { bg = "bg-blue-950/30"; textColor = "text-blue-400"; }
+    } else if (type === "add") { bg = "bg-diff-add-bg"; textColor = "text-diff-add-text"; }
+    else if (type === "remove") { bg = "bg-diff-remove-bg"; textColor = "text-diff-remove-text"; }
+    else if (type === "header") { bg = "bg-diff-header-bg"; textColor = "text-diff-header-text"; }
 
     const displayLine = isDemoted ? " " + line.slice(1) : line;
 
@@ -400,10 +400,10 @@ function UnifiedDiffLines({
             }
           }}
         >
-          <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
+          <span className="w-8 text-right mr-1 text-bd-primary text-xs select-none flex-shrink-0">
             {isDemoted ? (demotedOldNum ?? "") : (nums.old ?? "")}
           </span>
-          <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
+          <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0">
             {nums.new ?? ""}
           </span>
           <span className="select-none flex-shrink-0 w-4">{displayLine?.[0] ?? " "}</span>
@@ -415,9 +415,9 @@ function UnifiedDiffLines({
           {canComment && (
             <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
               {hasComment ? (
-                <MessageSquare className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400/20" />
+                <MessageSquare className="w-3.5 h-3.5 text-accent-text fill-accent-text/20" />
               ) : (
-                <MessageSquare className="w-3.5 h-3.5 text-zinc-600" />
+                <MessageSquare className="w-3.5 h-3.5 text-t-tertiary" />
               )}
             </span>
           )}
@@ -457,7 +457,7 @@ function UnifiedDiffLines({
             {hasGap && (
               <button
                 onClick={() => toggleGap(posIdx)}
-                className="w-full bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 text-xs text-center py-0.5 border-y border-zinc-800/50 select-none flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full bg-bg-secondary/60 text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 text-xs text-center py-0.5 border-y border-bd-primary/50 select-none flex items-center justify-center gap-1.5 transition-colors"
               >
                 <ChevronsUpDown className="w-3 h-3" />
                 {gapExpanded ? "Collapse" : `Show ${hiddenCount} hidden lines`}
@@ -573,13 +573,13 @@ function SplitDiffView({
   const pairs = useMemo(() => buildSplitPairs(lines, wsInfo), [lines, wsInfo]);
 
   return (
-    <div className="grid grid-cols-2 divide-x divide-zinc-800">
+    <div className="grid grid-cols-2 divide-x divide-bd-primary">
       {/* Left (old) */}
       <div>
         {pairs.map((pair, i) => {
           if (pair.type === "header") {
             return (
-              <div key={i} className="bg-blue-950/30 text-blue-400 font-mono text-xs px-3 py-1 truncate">
+              <div key={i} className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate">
                 {pair.oldLine}
               </div>
             );
@@ -591,11 +591,11 @@ function SplitDiffView({
           return (
             <div
               key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-zinc-300 ${
-                isRemove ? "bg-red-950/40" : hasOld ? "" : "bg-zinc-900/30"
+              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
+                isRemove ? "bg-diff-remove-bg" : hasOld ? "" : "bg-bg-secondary/30"
               }`}
             >
-              <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
+              <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
                 {pair.oldNum ?? ""}
               </span>
               <span className="select-none flex-shrink-0 w-4">{hasOld ? (pair.oldLine?.[0] ?? " ") : ""}</span>
@@ -611,7 +611,7 @@ function SplitDiffView({
         {pairs.map((pair, i) => {
           if (pair.type === "header") {
             return (
-              <div key={i} className="bg-blue-950/30 text-blue-400 font-mono text-xs px-3 py-1 truncate">
+              <div key={i} className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate">
                 {pair.newLine}
               </div>
             );
@@ -623,11 +623,11 @@ function SplitDiffView({
           return (
             <div
               key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-zinc-300 ${
-                isAdd ? "bg-green-950/40" : hasNew ? "" : "bg-zinc-900/30"
+              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
+                isAdd ? "bg-diff-add-bg" : hasNew ? "" : "bg-bg-secondary/30"
               }`}
             >
-              <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
+              <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
                 {pair.newNum ?? ""}
               </span>
               <span className="select-none flex-shrink-0 w-4">{hasNew ? (pair.newLine?.[0] ?? " ") : ""}</span>
@@ -662,7 +662,7 @@ function ExpandButton({
     <button
       onClick={onClick}
       disabled={loading}
-      className="w-full flex items-center justify-center gap-1.5 py-1 text-xs text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/5 transition-colors select-none border-zinc-800/50"
+      className="w-full flex items-center justify-center gap-1.5 py-1 text-xs text-t-tertiary hover:text-accent-text hover:bg-accent-muted transition-colors select-none border-bd-primary/50"
       style={{
         borderTopWidth: direction === "above" ? 0 : 1,
         borderBottomWidth: direction === "below" ? 0 : 1,
@@ -699,12 +699,12 @@ function ExpandedContextLines({
       {linesToRender.map(({ num, content }) => (
         <div
           key={`expanded-${num}`}
-          className="px-4 text-zinc-500 font-mono flex items-center bg-zinc-950/40"
+          className="px-4 text-t-tertiary font-mono flex items-center bg-bg-primary/40"
         >
-          <span className="w-8 text-right mr-1 text-zinc-700 text-xs select-none flex-shrink-0">
+          <span className="w-8 text-right mr-1 text-bd-primary text-xs select-none flex-shrink-0">
             {num}
           </span>
-          <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
+          <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0">
             {num}
           </span>
           <span className="select-none flex-shrink-0 w-4">{" "}</span>
@@ -886,10 +886,10 @@ export function DiffView({
     : EXPAND_STEP;
 
   return (
-    <div className="rounded-lg border border-zinc-800 overflow-hidden mb-3 group">
-      <div className="bg-zinc-900 px-4 py-2 border-b border-zinc-800">
+    <div className="rounded-lg border border-bd-primary overflow-hidden mb-3 group">
+      <div className="bg-bg-secondary px-4 py-2 border-b border-bd-primary">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-mono text-zinc-300">{fileName}</span>
+          <span className="text-sm font-mono text-t-secondary">{fileName}</span>
           <div className="flex items-center gap-2">
             {onAskAbout && (
               <button
@@ -899,7 +899,7 @@ export function DiffView({
                     `Explain this code change in ${fileName}:\n\n\`\`\`\n${snippet}\n\`\`\`\n${annotation ? `\nThe annotation says: "${annotation}"` : ""}\n\nWhat exactly is happening here and why?`
                   );
                 }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-indigo-400"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-t-tertiary hover:text-accent-text"
                 title="Ask about this code"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
@@ -910,7 +910,7 @@ export function DiffView({
                 href={githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-t-tertiary hover:text-t-secondary"
                 title="View on GitHub"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -919,7 +919,7 @@ export function DiffView({
           </div>
         </div>
         {annotation && (
-          <p className="text-xs text-indigo-300/80 mt-1">{annotation}</p>
+          <p className="text-xs text-accent-text/80 mt-1">{annotation}</p>
         )}
       </div>
       <div className="overflow-x-auto">

@@ -9,29 +9,24 @@ export function FancyModeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-4 left-4 z-40 flex items-center gap-2 px-3 py-2 rounded-full text-xs border transition-all duration-300 group"
-      style={{
-        background: fancy
-          ? "rgba(99, 102, 241, 0.1)"
-          : "rgba(39, 39, 42, 0.8)",
-        borderColor: fancy
-          ? "rgba(99, 102, 241, 0.3)"
-          : "rgba(63, 63, 70, 0.5)",
-        backdropFilter: "blur(8px)",
-      }}
+      className={`fixed bottom-4 left-4 z-40 flex items-center gap-2 px-3 py-2 rounded-full text-xs border transition-all duration-300 group backdrop-blur-md ${
+        fancy
+          ? "bg-accent-muted border-accent/30"
+          : "bg-bg-tertiary/80 border-bd-primary/50"
+      }`}
       title={fancy ? "Switch to clean UI" : "Switch to fancy UI"}
     >
       {fancy ? (
         <>
-          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="text-indigo-300 hidden group-hover:inline transition-all">
+          <Sparkles className="w-3.5 h-3.5 text-accent-text" />
+          <span className="text-accent-text hidden group-hover:inline transition-all">
             Fancy
           </span>
         </>
       ) : (
         <>
-          <MonitorDot className="w-3.5 h-3.5 text-zinc-400" />
-          <span className="text-zinc-400 hidden group-hover:inline transition-all">
+          <MonitorDot className="w-3.5 h-3.5 text-t-tertiary" />
+          <span className="text-t-tertiary hidden group-hover:inline transition-all">
             Clean
           </span>
         </>
