@@ -34,5 +34,35 @@ outputs:
   chapters:
     description: "Number of chapters in the generated review"
 runs:
-  using: "node20"
-  main: "dist-action/index.js"
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: "npm"
+        cache-dependency-path: ${{ github.action_path }}/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci
+
+    - name: Build action bundle
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm run build:all
+
+    - name: Run narrative review
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        INPUT_ANTHROPIC-API-KEY: ${{ inputs.anthropic-api-key }}
+        INPUT_GITHUB-TOKEN: ${{ inputs.github-token }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_MAX-DIFF-SIZE: ${{ inputs.max-diff-size }}
+        INPUT_MAX-LINES: ${{ inputs.max-lines }}
+        INPUT_MAX-COST: ${{ inputs.max-cost }}
+        INPUT_FORCE: ${{ inputs.force }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node dist-action/index.js

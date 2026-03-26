@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# built action bundle (built at runtime in CI)
+/dist-action
+/dist-static
