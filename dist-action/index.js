@@ -30476,7 +30476,19 @@ NEVER show the deletion of View Y before showing the call site changes that made
 - Keep narrative text concise but informative. Write like a knowledgeable colleague explaining the PR over coffee.
 - If a change is straightforward (e.g., fixing a typo, updating an import), it can be a brief chapter.
 - Group tightly related cross-file changes together rather than showing them separately.
-- For each chapter's connectionToPrevious, explicitly reference what was established in earlier chapters that makes this change safe or necessary.`;
+- For each chapter's connectionToPrevious, explicitly reference what was established in earlier chapters that makes this change safe or necessary.
+
+## Step Decomposition for Large Hunks
+
+When a hunk has more than 30 addition lines (especially newly added files that appear as a single large hunk), you MUST decompose it into logical "steps" so a reviewer can understand the code piece by piece. Each step represents a logical group of lines that belong together (e.g., imports, a type definition, a function, a class method, configuration block).
+
+For each such large hunk, provide a \`steps\` array on the hunk object. Each step has:
+- \`label\`: Short name for this group (e.g., "imports and dependencies", "UserProfile interface", "handleSubmit function", "default export")
+- \`annotation\`: One sentence explaining what this code block does and why it exists
+- \`lineStart\`: 0-based index into the hunk's content lines (excluding the @@ header)
+- \`lineEnd\`: 0-based exclusive end index
+
+Steps must be contiguous and cover all content lines of the hunk. Aim for 10-25 lines per step. Do NOT provide steps for small hunks (under 30 addition lines) — omit the steps field entirely for those.`;
 const narrativeOutputSchema = {
     type: "object",
     properties: {
@@ -30501,6 +30513,20 @@ const narrativeOutputSchema = {
                                 file: { type: "string" },
                                 hunkIndex: { type: "number" },
                                 annotation: { type: "string" },
+                                steps: {
+                                    type: "array",
+                                    description: "Logical decomposition for large hunks (>30 addition lines). Omit for small hunks.",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            label: { type: "string", description: "Short name for this code group" },
+                                            annotation: { type: "string", description: "One sentence explaining this block" },
+                                            lineStart: { type: "number", description: "0-based start index into hunk content lines" },
+                                            lineEnd: { type: "number", description: "0-based exclusive end index" },
+                                        },
+                                        required: ["label", "annotation", "lineStart", "lineEnd"],
+                                    },
+                                },
                             },
                             required: ["file", "hunkIndex"],
                         },
@@ -30577,12 +30603,21 @@ Analyze this diff and return the narrative JSON.`;
         hunks: ch.hunks.map((h) => {
             const file = diff.files.find((f) => f.path === h.file);
             const hunk = file?.hunks[h.hunkIndex];
+            const steps = h.steps?.length
+                ? h.steps.map((s) => ({
+                    label: s.label,
+                    annotation: s.annotation,
+                    lineStart: s.lineStart,
+                    lineEnd: s.lineEnd,
+                }))
+                : undefined;
             return {
                 file: h.file,
                 hunkIndex: h.hunkIndex,
                 diffContent: hunk?.rawContent ||
                     `[hunk not found: ${h.file}#${h.hunkIndex}]`,
                 annotation: h.annotation,
+                steps,
             };
         }),
     }));
