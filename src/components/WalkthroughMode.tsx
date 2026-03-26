@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
+import { NarrativeReview, DiffSettings, DiffViewMode, HunkStep } from "@/lib/types";
 import { DiffView } from "./DiffView";
+import { SteppedDiffView } from "./SteppedDiffView";
+import { buildSlideList, decomposeChapterHunk, findNextChapterStart, findPrevChapterStart } from "@/lib/hunk-stepper";
 import {
   ChevronLeft,
   ChevronRight,
@@ -39,11 +41,32 @@ export function WalkthroughMode({
   startChapterId,
   fileContents,
 }: WalkthroughModeProps) {
-  // -1 = intro slide, 0..n = chapter slides
-  const startIndex = startChapterId
-    ? review.chapters.findIndex((c) => c.id === startChapterId)
-    : -1;
-  const [currentIndex, setCurrentIndex] = useState(startIndex);
+  // Build the flat slide list from chapters
+  const slides = useMemo(() => buildSlideList(review.chapters), [review.chapters]);
+
+  // Precompute decomposed steps per chapter hunk for rendering
+  const decomposedSteps = useMemo(() => {
+    const map = new Map<string, HunkStep[]>();
+    for (const chapter of review.chapters) {
+      for (let hi = 0; hi < chapter.hunks.length; hi++) {
+        const key = `${chapter.id}:${hi}`;
+        map.set(key, decomposeChapterHunk(chapter.hunks[hi]));
+      }
+    }
+    return map;
+  }, [review.chapters]);
+
+  // -1 = intro slide, 0..n = flat slide index
+  const startSlideIndex = useMemo(() => {
+    if (!startChapterId) return -1;
+    const chapterIdx = review.chapters.findIndex((c) => c.id === startChapterId);
+    if (chapterIdx === -1) return -1;
+    // Find the first slide for this chapter
+    const idx = slides.findIndex((s) => s.chapterIndex === chapterIdx);
+    return idx >= 0 ? idx : -1;
+  }, [startChapterId, review.chapters, slides]);
+
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(startSlideIndex);
   const [transitioning, setTransitioning] = useState(false);
   const [direction, setDirection] = useState<"left" | "right">("right");
   const [showDiff, setShowDiff] = useState(false);
@@ -53,13 +76,31 @@ export function WalkthroughMode({
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const isIntro = currentIndex === -1;
-  const chapter = isIntro ? null : review.chapters[currentIndex];
-  const isFirst = currentIndex === -1;
-  const isLast = currentIndex === review.chapters.length - 1;
+  const isIntro = currentSlideIndex === -1;
+  const currentSlide = isIntro ? null : slides[currentSlideIndex];
+  const chapter = currentSlide ? review.chapters[currentSlide.chapterIndex] : null;
+  const isFirst = currentSlideIndex === -1;
+  const isLast = currentSlideIndex === slides.length - 1;
   const reviewed = chapter ? isChapterReviewed(chapter.id) : false;
-  const totalSlides = review.chapters.length + 1; // intro + chapters
-  const slideNumber = currentIndex + 2; // 1-indexed, intro is 1
+
+  // Compute step info for the current slide
+  const currentHunkSteps = useMemo(() => {
+    if (!currentSlide || !chapter) return null;
+    const key = `${chapter.id}:${currentSlide.hunkIndex}`;
+    return decomposedSteps.get(key) ?? null;
+  }, [currentSlide, chapter, decomposedSteps]);
+
+  const hasMultipleSteps = (currentHunkSteps?.length ?? 0) > 1;
+
+  // Count total steps in current chapter for progress display
+  const chapterStepInfo = useMemo(() => {
+    if (!currentSlide) return { current: 0, total: 0 };
+    const chapterSlides = slides.filter((s) => s.chapterIndex === currentSlide.chapterIndex);
+    const currentWithinChapter = chapterSlides.findIndex(
+      (s) => s.hunkIndex === currentSlide.hunkIndex && s.stepIndex === currentSlide.stepIndex
+    );
+    return { current: currentWithinChapter + 1, total: chapterSlides.length };
+  }, [currentSlide, slides]);
 
   const uniqueFiles = useMemo(() => {
     if (!chapter) return [];
@@ -79,45 +120,143 @@ export function WalkthroughMode({
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Map<number, number>>(new Map());
 
-  const goTo = useCallback(
-    (index: number, dir: "left" | "right") => {
-      if (index < -1 || index >= review.chapters.length) return;
-      if (scrollRef.current) {
-        scrollPositions.current.set(currentIndex, scrollRef.current.scrollTop);
-      }
-      setDirection(dir);
-      setTransitioning(true);
-      setShowDiff(false);
-      setTimeout(() => {
-        setCurrentIndex(index);
-        setTransitioning(false);
-        if (scrollRef.current) {
-          const saved = scrollPositions.current.get(index);
-          scrollRef.current.scrollTop = saved ?? 0;
-        }
-      }, 250);
+  // Determine if the next slide is crossing a chapter boundary
+  const isCrossingChapter = useCallback(
+    (fromIndex: number, toIndex: number): boolean => {
+      if (fromIndex < 0 || toIndex < 0) return true;
+      if (fromIndex >= slides.length || toIndex >= slides.length) return true;
+      return slides[fromIndex].chapterIndex !== slides[toIndex].chapterIndex;
     },
-    [review.chapters.length, currentIndex]
+    [slides]
   );
 
-  const goNext = useCallback(() => goTo(currentIndex + 1, "right"), [currentIndex, goTo]);
-  const goPrev = useCallback(() => goTo(currentIndex - 1, "left"), [currentIndex, goTo]);
+  const goTo = useCallback(
+    (index: number, dir: "left" | "right") => {
+      if (index < -1 || index >= slides.length) return;
+
+      // Auto-mark chapter reviewed when leaving a chapter's last step
+      if (
+        currentSlideIndex >= 0 &&
+        currentSlideIndex < slides.length &&
+        slides[currentSlideIndex].isChapterEnd &&
+        dir === "right" &&
+        index > currentSlideIndex
+      ) {
+        const leavingChapter = review.chapters[slides[currentSlideIndex].chapterIndex];
+        if (leavingChapter && !isChapterReviewed(leavingChapter.id)) {
+          onToggleReview(leavingChapter.id);
+        }
+      }
+
+      if (scrollRef.current) {
+        scrollPositions.current.set(currentSlideIndex, scrollRef.current.scrollTop);
+      }
+
+      const crossing = isCrossingChapter(currentSlideIndex, index) || isIntro || index === -1;
+
+      if (crossing) {
+        // Full slide transition for chapter boundaries
+        setDirection(dir);
+        setTransitioning(true);
+        setShowDiff(false);
+        setTimeout(() => {
+          setCurrentSlideIndex(index);
+          setTransitioning(false);
+          if (scrollRef.current) {
+            const saved = scrollPositions.current.get(index);
+            scrollRef.current.scrollTop = saved ?? 0;
+          }
+        }, 250);
+      } else {
+        // Subtle transition within a chapter
+        setCurrentSlideIndex(index);
+        if (scrollRef.current) {
+          const saved = scrollPositions.current.get(index);
+          if (saved !== undefined) scrollRef.current.scrollTop = saved;
+        }
+      }
+    },
+    [slides.length, currentSlideIndex, isCrossingChapter, isIntro, review.chapters, isChapterReviewed, onToggleReview]
+  );
+
+  const goNext = useCallback(() => {
+    if (isIntro) {
+      goTo(0, "right");
+    } else if (!isLast) {
+      goTo(currentSlideIndex + 1, "right");
+    } else {
+      // On the very last slide, auto-mark and exit
+      if (currentSlide?.isChapterEnd) {
+        const lastChapter = review.chapters[currentSlide.chapterIndex];
+        if (lastChapter && !isChapterReviewed(lastChapter.id)) {
+          onToggleReview(lastChapter.id);
+        }
+      }
+      onExit();
+    }
+  }, [isIntro, isLast, currentSlideIndex, currentSlide, goTo, review.chapters, isChapterReviewed, onToggleReview, onExit]);
+
+  const goPrev = useCallback(() => {
+    if (!isFirst) goTo(currentSlideIndex - 1, "left");
+  }, [isFirst, currentSlideIndex, goTo]);
+
+  const goNextChapter = useCallback(() => {
+    if (isIntro) {
+      goTo(0, "right");
+      return;
+    }
+    const next = findNextChapterStart(slides, currentSlideIndex);
+    if (next >= 0) goTo(next, "right");
+  }, [isIntro, slides, currentSlideIndex, goTo]);
+
+  const goPrevChapter = useCallback(() => {
+    if (isIntro) return;
+    const prev = findPrevChapterStart(slides, currentSlideIndex);
+    if (prev >= 0) {
+      goTo(prev, "left");
+    } else {
+      goTo(-1, "left"); // go to intro
+    }
+  }, [isIntro, slides, currentSlideIndex, goTo]);
+
+  // Jump to a specific chapter from the intro
+  const goToChapter = useCallback(
+    (chapterIndex: number) => {
+      const idx = slides.findIndex((s) => s.chapterIndex === chapterIndex && s.isChapterStart);
+      if (idx >= 0) goTo(idx, "right");
+    },
+    [slides, goTo]
+  );
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      // Shift+arrow: skip chapters
+      if (e.shiftKey && (e.key === "ArrowRight" || e.key === "J")) {
+        e.preventDefault();
+        goNextChapter();
+        return;
+      }
+      if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "K")) {
+        e.preventDefault();
+        goPrevChapter();
+        return;
+      }
+
       switch (e.key) {
+        case " ":
         case "ArrowRight":
         case "j":
           e.preventDefault();
-          if (!isLast) goNext();
+          goNext();
           break;
         case "ArrowLeft":
         case "k":
           e.preventDefault();
-          if (!isFirst) goPrev();
+          goPrev();
           break;
-        case " ":
+        case "r":
           e.preventDefault();
           if (chapter) onToggleReview(chapter.id);
           break;
@@ -137,13 +276,38 @@ export function WalkthroughMode({
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [chapter, isFirst, isLast, isIntro, goNext, goPrev, onExit, onToggleReview]);
+  }, [chapter, isIntro, goNext, goPrev, goNextChapter, goPrevChapter, onExit, onToggleReview]);
 
+  // Auto-show diff after slide transition
   useEffect(() => {
     if (isIntro) return;
     const timer = setTimeout(() => setShowDiff(true), 600);
     return () => clearTimeout(timer);
-  }, [currentIndex, isIntro]);
+  }, [currentSlideIndex, isIntro]);
+
+  // Current step annotation for sidebar display
+  const currentStepLabel = useMemo(() => {
+    if (!currentSlide || !currentHunkSteps || !hasMultipleSteps) return null;
+    const step = currentHunkSteps[currentSlide.stepIndex];
+    return step?.label ?? null;
+  }, [currentSlide, currentHunkSteps, hasMultipleSteps]);
+
+  const currentStepAnnotation = useMemo(() => {
+    if (!currentSlide || !currentHunkSteps || !hasMultipleSteps) return null;
+    const step = currentHunkSteps[currentSlide.stepIndex];
+    return step?.annotation ?? null;
+  }, [currentSlide, currentHunkSteps, hasMultipleSteps]);
+
+  // Top bar slide counter
+  const topBarLabel = useMemo(() => {
+    if (isIntro) return `1 / ${slides.length + 1}`;
+    const chapterNum = (currentSlide?.chapterIndex ?? 0) + 1;
+    const totalChapters = review.chapters.length;
+    if (chapterStepInfo.total > 1) {
+      return `Ch ${chapterNum}/${totalChapters} · Step ${chapterStepInfo.current}/${chapterStepInfo.total}`;
+    }
+    return `Ch ${chapterNum}/${totalChapters}`;
+  }, [isIntro, currentSlide, review.chapters.length, chapterStepInfo, slides.length]);
 
   return (
     <div className="fixed inset-0 bg-bg-primary z-50 flex flex-col">
@@ -151,7 +315,7 @@ export function WalkthroughMode({
       <div className="flex items-center justify-between px-6 py-3 border-b border-bd-primary/50">
         <div className="flex items-center gap-3">
           <span className="text-sm text-t-tertiary font-mono">
-            {slideNumber} / {totalSlides}
+            {topBarLabel}
           </span>
           <span className="text-sm text-t-tertiary">·</span>
           <span className="text-sm text-t-tertiary truncate max-w-md">{review.title}</span>
@@ -212,7 +376,7 @@ export function WalkthroughMode({
               ) : (
                 <Circle className="w-4 h-4" />
               )}
-              {reviewed ? "Reviewed" : "Mark reviewed"}
+              {reviewed ? "Reviewed" : "Mark reviewed (r)"}
             </button>
           )}
           <button
@@ -271,7 +435,7 @@ export function WalkthroughMode({
                   <span>{prStats.files} files</span>
                 </div>
                 <span className="text-green-400">+{prStats.additions}</span>
-                <span className="text-red-400">−{prStats.deletions}</span>
+                <span className="text-red-400">-{prStats.deletions}</span>
                 <span>{review.chapters.length} chapters</span>
               </div>
 
@@ -280,11 +444,14 @@ export function WalkthroughMode({
                 <h3 className="text-xs text-t-tertiary uppercase tracking-wider font-semibold mb-3">
                   Journey Outline
                 </h3>
+                <p className="text-xs text-t-tertiary mb-4">
+                  Press <kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">space</kbd> to begin
+                </p>
                 <div className="space-y-2">
                   {review.chapters.map((ch, i) => (
                     <button
                       key={ch.id}
-                      onClick={() => goTo(i, "right")}
+                      onClick={() => goToChapter(i)}
                       className="w-full flex items-start gap-3 px-3 py-2 rounded-lg hover:bg-bg-secondary/60 transition-colors group text-left"
                     >
                       <span className="text-xs font-mono text-t-tertiary mt-0.5 w-5 text-right flex-shrink-0">
@@ -306,7 +473,7 @@ export function WalkthroughMode({
                 </div>
               </div>
             </div>
-          ) : chapter ? (
+          ) : chapter && currentSlide ? (
             /* ── Chapter slide — two-column layout ── */
             <div className="flex">
               {/* Left: sticky narrative sidebar */}
@@ -324,7 +491,7 @@ export function WalkthroughMode({
                   >
                     <PanelLeftOpen className="w-4 h-4" />
                   </button>
-                  <span className="text-xs font-mono text-t-tertiary mt-2">{currentIndex + 1}</span>
+                  <span className="text-xs font-mono text-t-tertiary mt-2">{currentSlide.chapterIndex + 1}</span>
                 </div>
 
                 {/* Expanded state */}
@@ -333,7 +500,7 @@ export function WalkthroughMode({
                 }`}>
                   <div className="flex items-start justify-between mb-4">
                     <span className="text-6xl font-bold text-bg-tertiary font-mono">
-                      {currentIndex + 1}
+                      {currentSlide.chapterIndex + 1}
                     </span>
                     <button
                       onClick={() => setSidebarCollapsed(true)}
@@ -355,6 +522,40 @@ export function WalkthroughMode({
                   <p className="text-sm text-t-secondary leading-relaxed mt-4 mb-5">
                     {chapter.narrative}
                   </p>
+
+                  {/* Step progress indicator (only when chapter has multiple steps) */}
+                  {chapterStepInfo.total > 1 && (
+                    <div className="mb-5 p-3 bg-bg-secondary/60 border border-bd-primary/50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-t-tertiary uppercase tracking-wider font-semibold">
+                          Step {chapterStepInfo.current} of {chapterStepInfo.total}
+                        </span>
+                        {currentStepLabel && (
+                          <span className="text-xs text-accent-text font-mono">
+                            {currentStepLabel}
+                          </span>
+                        )}
+                      </div>
+                      {/* Segmented progress bar */}
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: chapterStepInfo.total }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                              i < chapterStepInfo.current
+                                ? "bg-accent"
+                                : "bg-bd-primary"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      {currentStepAnnotation && (
+                        <p className="text-xs text-t-tertiary mt-2 leading-relaxed">
+                          {currentStepAnnotation}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Files touched */}
                   <div className="flex flex-wrap gap-1.5 mb-5">
@@ -390,22 +591,79 @@ export function WalkthroughMode({
                   showDiff ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                 }`}
               >
-                {chapter.hunks.map((hunk, i) => (
-                  <div
-                    key={`${hunk.file}-${hunk.hunkIndex}-${i}`}
-                    className="transition-all duration-300"
-                    style={{ transitionDelay: `${i * 80}ms` }}
-                  >
-                    <DiffView
-                      diffContent={hunk.diffContent}
-                      fileName={hunk.file}
-                      annotation={hunk.annotation}
-                      settings={diffSettings}
-                      prInfo={review.prInfo}
-                      fileContent={fileContents?.[hunk.file]}
-                    />
-                  </div>
-                ))}
+                {chapter.hunks.map((hunk, hi) => {
+                  const key = `${chapter.id}:${hi}`;
+                  const steps = decomposedSteps.get(key) ?? [];
+                  const isCurrentHunk = currentSlide.hunkIndex === hi;
+                  const hunkHasSteps = steps.length > 1;
+
+                  // For hunks before the current one in this chapter, show fully
+                  // For hunks after, hide
+                  // For current hunk, show stepped if it has steps
+                  if (hi < currentSlide.hunkIndex) {
+                    // Fully revealed prior hunk
+                    return (
+                      <div
+                        key={`${hunk.file}-${hunk.hunkIndex}-${hi}`}
+                        className="transition-all duration-300 step-context-hunk"
+                        style={{ transitionDelay: `${hi * 80}ms` }}
+                      >
+                        <DiffView
+                          diffContent={hunk.diffContent}
+                          fileName={hunk.file}
+                          annotation={hunk.annotation}
+                          settings={diffSettings}
+                          prInfo={review.prInfo}
+                          fileContent={fileContents?.[hunk.file]}
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (hi > currentSlide.hunkIndex) {
+                    // Future hunk — hidden
+                    return null;
+                  }
+
+                  // Current hunk
+                  if (isCurrentHunk && hunkHasSteps) {
+                    return (
+                      <div
+                        key={`${hunk.file}-${hunk.hunkIndex}-${hi}`}
+                        className="transition-all duration-300 step-reveal-container"
+                      >
+                        <SteppedDiffView
+                          diffContent={hunk.diffContent}
+                          fileName={hunk.file}
+                          steps={steps}
+                          currentStepIndex={currentSlide.stepIndex}
+                          settings={diffSettings}
+                          prInfo={review.prInfo}
+                          fileContent={fileContents?.[hunk.file]}
+                          annotation={hunk.annotation}
+                        />
+                      </div>
+                    );
+                  }
+
+                  // Current hunk, single step — show normally
+                  return (
+                    <div
+                      key={`${hunk.file}-${hunk.hunkIndex}-${hi}`}
+                      className="transition-all duration-300"
+                      style={{ transitionDelay: `${hi * 80}ms` }}
+                    >
+                      <DiffView
+                        diffContent={hunk.diffContent}
+                        fileName={hunk.file}
+                        annotation={hunk.annotation}
+                        settings={diffSettings}
+                        prInfo={review.prInfo}
+                        fileContent={fileContents?.[hunk.file]}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -425,36 +683,59 @@ export function WalkthroughMode({
             }`}
           >
             <ChevronLeft className="w-4 h-4" />
-            {currentIndex === 0 ? "Overview" : "Previous"}
+            Previous
           </button>
 
-          {/* Progress dots — intro dot + chapter dots */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => goTo(-1, "left")}
-              className={`rounded-full transition-all ${
-                isIntro ? "w-6 h-2 bg-accent" : "w-2 h-2 bg-t-tertiary hover:bg-t-tertiary"
-              }`}
-              title="Overview"
-            />
-            {review.chapters.map((ch, i) => (
+          {/* Progress dots — intro dot + chapter dots with step sub-indicators */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
-                key={ch.id}
-                onClick={() => goTo(i, i > currentIndex ? "right" : "left")}
+                onClick={() => goTo(-1, "left")}
                 className={`rounded-full transition-all ${
-                  i === currentIndex
-                    ? "w-6 h-2 bg-accent"
-                    : isChapterReviewed(ch.id)
-                    ? "w-2 h-2 bg-green-500"
-                    : "w-2 h-2 bg-bd-primary hover:bg-t-tertiary"
+                  isIntro ? "w-6 h-2 bg-accent" : "w-2 h-2 bg-t-tertiary hover:bg-t-tertiary"
                 }`}
+                title="Overview"
               />
-            ))}
+              {review.chapters.map((ch, ci) => {
+                const isActiveChapter = currentSlide?.chapterIndex === ci;
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => goToChapter(ci)}
+                    className={`rounded-full transition-all ${
+                      isActiveChapter
+                        ? "w-6 h-2 bg-accent"
+                        : isChapterReviewed(ch.id)
+                        ? "w-2 h-2 bg-green-500"
+                        : "w-2 h-2 bg-bd-primary hover:bg-t-tertiary"
+                    }`}
+                    title={`Chapter ${ci + 1}: ${ch.title}`}
+                  />
+                );
+              })}
+            </div>
+            {/* Step sub-dots for active chapter */}
+            {!isIntro && chapterStepInfo.total > 1 && (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: chapterStepInfo.total }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-full transition-all ${
+                      i + 1 === chapterStepInfo.current
+                        ? "w-3 h-1 bg-accent/70"
+                        : i + 1 < chapterStepInfo.current
+                        ? "w-1.5 h-1 bg-accent/40"
+                        : "w-1.5 h-1 bg-bd-primary/50"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {isLast ? (
             <button
-              onClick={onExit}
+              onClick={goNext}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-accent hover:bg-accent/80 text-white transition-colors"
             >
               Finish
@@ -473,10 +754,10 @@ export function WalkthroughMode({
 
         {/* Keyboard hints */}
         <div className="mx-auto flex items-center justify-center gap-4 mt-2 text-[10px] text-bd-primary">
-          <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">←→</kbd> navigate</span>
-          {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">space</kbd> review</span>}
+          <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">space</kbd> advance</span>
+          {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">shift+arrows</kbd> skip chapter</span>}
+          {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">r</kbd> review</span>}
           {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">d</kbd> toggle diff</span>}
-          {!isIntro && <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">w</kbd> whitespace</span>}
           <span><kbd className="px-1 py-0.5 rounded bg-bg-secondary border border-bd-primary font-mono">esc</kbd> exit</span>
         </div>
       </div>

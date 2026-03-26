@@ -36,11 +36,42 @@ export interface ParsedDiff {
   rawDiff: string;
 }
 
+export interface HunkStepDef {
+  label?: string;
+  annotation?: string;
+  lineStart: number;
+  lineEnd: number;
+}
+
 export interface ChapterHunk {
   file: string;
   hunkIndex: number;
   diffContent: string;
   annotation?: string;
+  steps?: HunkStepDef[];
+}
+
+export interface HunkStep {
+  stepIndex: number;
+  lines: string[];
+  startLineNew: number;
+  label?: string;
+  annotation?: string;
+}
+
+export interface DecomposedHunk {
+  file: string;
+  hunkIndex: number;
+  fullDiffContent: string;
+  steps: HunkStep[];
+}
+
+export interface WalkthroughSlide {
+  chapterIndex: number;
+  hunkIndex: number;
+  stepIndex: number;
+  isChapterStart: boolean;
+  isChapterEnd: boolean;
 }
 
 export interface Chapter {
