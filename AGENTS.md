@@ -4,63 +4,65 @@ Guidelines for AI agents working on this codebase.
 
 ## Project Overview
 
-Narrative Review is an AI-powered code review tool that reorders PR diffs into a causal narrative. It ships as both a **GitHub Action** (consumed by other repos) and a **local Next.js web app**.
+Narrative Review is a GitHub Action that reorders PR diffs into a causal narrative using Claude. It ships as a single self-contained HTML review page, deployed to `gh-pages` or uploaded as a workflow artifact.
 
 ## Repository Layout
 
 ```
-action/          → GitHub Action entry point and helpers (TypeScript, bundled with ncc)
-static/          → Standalone HTML review page (React, bundled with Vite into a single file)
-src/app/         → Next.js App Router pages and API routes (local web app)
-src/components/  → Shared React components (used by both Next.js and static builds)
-src/lib/         → Core logic: diff parsing, Claude analysis, coverage verification, types
-src/hooks/       → React hooks (review state, theme, fancy mode)
+action/          → GitHub Action entry point + helpers (TypeScript, bundled with ncc)
+static/          → Vite entry for the single-file HTML review bundle
+src/components/  → React UI (consumed by the static bundle)
+src/hooks/       → React hooks (useReviewState, useFancyMode, useTheme)
+src/lib/         → Core logic: diff parsing, Claude analysis, coverage verification, shared types
 dist-action/     → Committed build output — the bundled GitHub Action
-dist-static/     → Committed build output — the self-contained HTML template
+dist-static/     → Committed build output — the HTML review template
+tools/           → Local helpers (fixture injector)
 ```
 
 ## Build System
 
-There are three build pipelines. Changes to source files require rebuilding the corresponding dist:
+Two build pipelines. Changes to source files require rebuilding the matching dist:
 
-- `npm run build:static` — Vite bundles `static/` + shared `src/` into `dist-static/index.html`
-- `npm run build:action` — ncc bundles `action/index.ts` into `dist-action/index.js`, then copies the static template
-- `npm run build:all` — runs both sequentially
+- `npm run build:static` — Vite bundles `static/` + `src/` into `dist-static/index.html` (single file, base64-embedded assets)
+- `npm run build:action` — ncc bundles `action/index.ts` into `dist-action/index.js`, then copies `dist-static/index.html` to `dist-action/template.html`
+- `npm run build:all` — both, in order
 
-**You do not need to run the build manually.** A CI workflow (`.github/workflows/build.yml`) automatically rebuilds and commits `dist-action/` and `dist-static/` on every PR if they are stale.
+CI (`.github/workflows/build.yml`) auto-rebuilds and commits `dist-action/` + `dist-static/` on PRs when stale.
 
 ## Key Conventions
 
-- **TypeScript throughout** — strict mode enabled, path alias `@/` maps to `src/`
-- **Tailwind CSS 4** — utility-first styling, configured via PostCSS (Next.js) and Vite plugin (static)
-- **No test framework** — there are no tests currently; coverage verification is deterministic logic in `src/lib/coverage-verifier.ts`
-- **`src/lib/types.ts`** is the single source of truth for shared types across all three build targets
-- **Components in `src/components/`** must work in both Next.js and static (Vite) contexts — avoid Next.js-specific imports (like `next/link`) in shared components; the static build shims them via Vite aliases in `static/vite.config.mts`
+- **TypeScript strict mode**, path alias `@/` → `src/`
+- **Tailwind CSS 4** via `@tailwindcss/vite` (static bundle only)
+- **No test framework** — coverage-verifier logic is deterministic; use `tools/make-fixture.mjs` for local smoke tests
+- **`src/lib/types.ts`** is the single source of truth for shared types across action + static bundle
+- **No Next.js**, no SSR, no server. The static bundle must work as a file:// page
 
 ## GitHub Action Architecture
 
-- Entry point: `action/index.ts`
-- The action reads inputs via `@actions/core`, fetches PR data via `@actions/github` (Octokit), runs analysis through shared `src/lib/` modules, then deploys the review page
-- `action/deploy.ts` pushes to the `gh-pages` branch via the GitHub API
-- `action/github-api.ts` handles PR metadata, diff fetching, and PR description updates
-- `action/check-run.ts` manages GitHub Check Runs
-- The bundled output at `dist-action/index.js` is what GitHub actually executes — defined in `action.yml` under `runs.main`
+- Entry: `action/index.ts` — reads inputs via `@actions/core`, orchestrates fetch → analyze → render → deploy
+- `action/github-api.ts` — Octokit wrappers (PR metadata, diff, comments, file contents, PR description updates)
+- `action/deploy.ts` — pushes the rendered HTML to `gh-pages`
+- `action/check-run.ts` — GitHub Check Run lifecycle
+- `action.yml` defines inputs, outputs, branding, and `runs.main: dist-action/index.js`
+
+## Rendering flow
+
+1. `action/index.ts` fetches PR diff + metadata + comments
+2. `src/lib/analyzer.ts` calls Claude with the diff (prompt caching enabled)
+3. `src/lib/coverage-verifier.ts` ensures every hunk is referenced; backfills an "Uncategorized" chapter if not
+4. The `StaticReviewData` object is base64-encoded and injected into `dist-action/template.html` at the `%%REVIEW_DATA_B64%%` marker
+5. The result is pushed to `gh-pages` (if enabled) or uploaded as an artifact
 
 ## Common Tasks
 
-**Adding a new component**: Create it in `src/components/`. If it uses Next.js-specific APIs, it can only be used in the Next.js app. If it needs to work in the static build too, avoid Next.js imports or add a shim in `static/vite.config.mts`.
-
-**Modifying the Claude prompt**: The system prompt lives in `src/lib/analyzer.ts`. Changes here affect both the local web app and the GitHub Action.
-
-**Changing action inputs/outputs**: Update both `action.yml` (the Action manifest) and `action/index.ts` (where inputs are read).
-
-**Adding dependencies**: Use `npm install`. Runtime deps go in `dependencies`; build-only or action-only deps go in `devDependencies`.
+- **Modify the prompt**: `src/lib/analyzer.ts`
+- **Add an input/output**: update `action.yml` AND `action/index.ts`
+- **Add a UI component**: place in `src/components/`; verify it renders in `dist-static/fixture.html` after `node tools/make-fixture.mjs`
+- **Reference the action's own repo at runtime**: use `process.env.GITHUB_ACTION_REPOSITORY` (GitHub sets this automatically)
 
 ## Keeping Docs Up to Date
 
-After completing any change to this project, review and update the following files so they stay accurate:
+After any structural change, update:
 
-- **`AGENTS.md`** (this file) — update the repository layout, conventions, architecture, or common tasks sections if the change introduced new directories, files, patterns, build steps, or conventions
-- **`README.md`** — update the Architecture tree, feature list, tech stack, action inputs table, or development section if the change affects any of those
-
-Do not skip this step. Stale docs cause compounding confusion for both humans and agents.
+- **`AGENTS.md`** — layout, conventions, architecture, flow
+- **`README.md`** — features, inputs/outputs, architecture tree, tech stack

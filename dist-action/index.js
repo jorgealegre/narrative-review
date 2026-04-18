@@ -30120,7 +30120,8 @@ async function updatePRDescriptionWithNote(octokit, owner, repo, number, headSha
         link = "Check the workflow run artifacts for the review HTML.";
     }
     const shortSha = headSha.slice(0, 7);
-    const actionUrl = "https://github.com/sp0n-7/narrative-review";
+    const actionRepo = process.env.GITHUB_ACTION_REPOSITORY || "jorgealegre/narrative-review";
+    const actionUrl = `https://github.com/${actionRepo}`;
     const noteBlock = `${DESCRIPTION_MARKER_START}
 
 ---

@@ -2,7 +2,7 @@
 
 **Code review as a story, not a file list.**
 
-Narrative Review uses AI to reorder pull request diffs into a causal narrative — starting from the root cause and building outward — so reviewers understand *why* changes happened, not just *what* changed.
+Narrative Review is a GitHub Action that uses Claude to reorder pull request diffs into a causal narrative — starting from the root cause and building outward — so reviewers understand *why* changes happened, not just *what* changed.
 
 ![Landing Page](docs/landing.png)
 
@@ -16,67 +16,28 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 
 ## Features
 
-### Core Analysis
 - **Narrative ordering** — AI reorders diff hunks into causal chapters, root cause first
-- **100% coverage verification** — deterministic check ensures every hunk appears in at least one chapter; uncovered changes get a flagged "Uncategorized" chapter
-- **Safety annotations** — per-chapter notes flag potential risks, breaking changes, or things to watch
+- **100% coverage verification** — every hunk appears in at least one chapter; uncovered changes flagged in an "Uncategorized" chapter
+- **Safety annotations** — per-chapter notes flag risks and breaking changes
 - **Connection threading** — each chapter explains how it relates to the previous one
-
-### Input Sources
-- **GitHub PRs** — paste any PR URL; fetches diff and metadata via `gh` CLI
-- **Local branches** — point to a local repo, pick base/head branches, review before pushing
-- **Auto-detection** — local mode auto-discovers branches and guesses the default base
-
-### Review Experience
-- **Chapter-by-chapter progress** — mark chapters as reviewed, track completion percentage
-- **Chapter notes** — jot down thoughts on each chapter as you review
-- **Walkthrough mode** — full-screen cinematic presentation that steps through chapters one at a time with transitions
-- **Keyboard shortcuts** — `j`/`k` navigate, `Space` toggles reviewed, `n` jumps to next unreviewed
-- **Expand/collapse all** — toggle all diff views open or closed at once
-
-### Diff Viewing
-- **Three view modes** — Unified (standard), Compact (collapses context), Split (side-by-side)
+- **Self-contained HTML** — review renders as a single HTML file; no server required
+- **Walkthrough mode** — full-screen, chapter-by-chapter presentation
+- **Three diff views** — Unified, Compact (context collapsed), Split
+- **Progress tracking** — mark chapters reviewed; local-storage persistence
+- **Keyboard nav** — `j`/`k`/`Space`/`n`/`?`
+- **Inline PR comments** — existing PR review comments are rendered at their line
 - **Hide whitespace** — filters out whitespace-only changes
-- **Syntax-highlighted** — color-coded additions, removals, and context lines with line numbers
-- **GitHub deep-links** — click through to the exact file/line on GitHub
-
-### AI Chat
-- **Ask about this** — hover any chapter narrative or diff hunk and click to ask Claude to expand on it
-- **Open-ended chat** — slide-out panel for follow-up questions with full PR context
-- **Streaming responses** — answers stream in real-time via SSE
-
-### GitHub Integration
-- **Approve / Request changes** — submit reviews directly from the app (gated on 100% chapter completion)
-- **Line comments** — click any diff line to post a comment on the GitHub PR
-- **Deep-links** — every hunk links back to its GitHub file location
-
-### Export & History
-- **Export as Markdown** — download the full narrative review as a `.md` file to share with teammates
-- **Review history** — landing page shows your recent analyses for quick re-access
-- **localStorage caching** — revisiting a previously analyzed PR loads instantly from cache
-
-### Model Selection
-- **Claude Haiku** — fast and cheap (~$0.01 per review)
-- **Claude Sonnet** — balanced quality and speed (~$0.10)
-- **Claude Opus** — deepest analysis (~$0.50)
-- **Cost transparency** — token counts and dollar cost shown after analysis
-- **Prompt caching** — system prompt is cached to reduce repeated costs
-
-### UI
-- **Fancy mode** — futuristic UI with aurora backgrounds, glassmorphism, glow effects, animated transitions
-- **Clean mode** — minimal zinc-on-black UI for distraction-free reviewing
-- **Global toggle** — switch between modes with the floating button (bottom-right), persists across sessions
-- **Celebration** — completion overlay when all chapters are reviewed
+- **Syntax-highlighted** — language-aware diff coloring
+- **Cost transparency** — token usage + dollar cost shown per review
+- **Prompt caching** — system prompt cached across runs
 
 ---
 
-## GitHub Action — Add to Your Repo
-
-The fastest way to use Narrative Review is as a GitHub Action. When a PR is opened or updated, the action generates a narrative review and posts a link as a PR comment.
+## Install
 
 ### 1. Add the workflow
 
-Create `.github/workflows/narrative-review.yml` in your repo:
+Create `.github/workflows/narrative-review.yml`:
 
 ```yaml
 name: Narrative Review
@@ -93,15 +54,13 @@ jobs:
   review:
     runs-on: ubuntu-latest
     if: >-
+      contains(github.event.pull_request.labels.*.name, 'run-narrative-review') ||
       (
-        contains(github.event.pull_request.labels.*.name, 'run-narrative-review')
-      ) || (
-        !github.event.pull_request.draft
-        && github.event.pull_request.base.ref != 'master'
-        && !contains(github.event.pull_request.labels.*.name, 'wip')
+        !github.event.pull_request.draft &&
+        !contains(github.event.pull_request.labels.*.name, 'wip')
       )
     steps:
-      - uses: sp0n-7/narrative-review@main
+      - uses: jorgealegre/narrative-review@main
         id: narrative
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -118,121 +77,65 @@ jobs:
 
 ### 2. Add the Anthropic API key
 
-Go to your repo's **Settings → Secrets and variables → Actions** and add:
+**Settings → Secrets and variables → Actions → New repository secret**
 
-- **`ANTHROPIC_API_KEY`** — your key from [console.anthropic.com](https://console.anthropic.com)
+- `ANTHROPIC_API_KEY` — get one from [console.anthropic.com](https://console.anthropic.com)
 
-### 3. (Optional) Enable GitHub Pages
+### 3. (Optional) Serve reviews from GitHub Pages
 
-For direct review links instead of artifact downloads:
+For direct `https://…` review links instead of artifact downloads:
 
-1. Create a `gh-pages` branch: `git checkout --orphan gh-pages && git commit --allow-empty -m "init" && git push origin gh-pages`
-2. Go to **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`**
+1. `git checkout --orphan gh-pages && git commit --allow-empty -m "init" && git push origin gh-pages`
+2. **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`**
 3. Add a `.nojekyll` file to the `gh-pages` branch
 
-Reviews will be served at `https://<org>.github.io/<repo>/reviews/<pr-number>/`.
+Reviews will be served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/`.
 
-### Action inputs
+---
+
+## Inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
 | `anthropic-api-key` | *required* | Anthropic API key |
 | `github-token` | `${{ github.token }}` | GitHub token (auto-provided) |
-| `model` | `claude-sonnet-4-6` | Claude model (`claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6`) |
+| `model` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6` |
 | `max-diff-size` | `512000` | Max diff size in bytes before skipping |
-| `max-lines` | `5000` | Max lines changed before skipping |
+| `max-lines` | `5000` | Max total lines changed before skipping |
 | `max-cost` | `2.00` | Max estimated cost (USD) before skipping |
 | `force` | `false` | Bypass all size/cost/line checks |
 
-### Built-in guards
+## Outputs
 
-The action automatically skips reviews when:
-- PR is a **draft**
-- PR targets **`master`** (configurable in the workflow `if` condition)
-- PR has the **`wip`** label
-- PR has more than **5,000 lines** changed
-- Estimated cost exceeds **$2.00**
+| Output | Description |
+|--------|-------------|
+| `review-url` | URL to the generated review page |
+| `chapters` | Number of chapters generated |
+| `skipped` | `true` when the review was skipped by a guard |
 
-To force a review on any PR, add the **`run-narrative-review`** label.
+## Built-in guards
 
----
+The action skips automatically when the PR is a draft, labeled `wip`, larger than 5,000 lines, or estimated to cost more than $2.00. Force it on any PR with the `run-narrative-review` label.
 
-## Local Web App
+## Model cost guide
 
-You can also run Narrative Review as a local web app with additional features (AI chat, GitHub approve/comment, review history).
-
-### Prerequisites
-
-- **Node.js** 18+
-- **GitHub CLI** (`gh`) — authenticated with `gh auth login`
-- **Anthropic API key** — from [console.anthropic.com](https://console.anthropic.com)
-
-### Install
-
-```bash
-git clone <repo-url> narrative-review
-cd narrative-review
-npm install
-```
-
-### Configure
-
-Create `.env.local` in the project root:
-
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### Run
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
+| Model | Rough cost per review |
+|-------|-----------------------|
+| `claude-haiku-4-5-20251001` | ~$0.01 |
+| `claude-sonnet-4-6` | ~$0.10 |
+| `claude-opus-4-6` | ~$0.50 |
 
 ---
 
-## Usage
-
-### Reviewing a GitHub PR
-
-1. Copy the PR URL (e.g. `https://github.com/owner/repo/pull/123`)
-2. Paste it on the landing page
-3. Choose a model (Sonnet is a good default)
-4. Click **Analyze PR**
-5. Read through chapters in order, marking each as reviewed
-6. When done, approve or request changes from the sidebar
-
-### Reviewing Local Branches
-
-1. Switch to the **Local Branch** tab
-2. Enter your repo path (e.g. `/Users/you/Developer/project`)
-3. Branches are auto-discovered — pick base and head
-4. Click **Analyze Branch**
-5. Review the narrative as with any PR
-
-### Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
 | `j` | Next chapter |
 | `k` | Previous chapter |
-| `Space` | Toggle chapter as reviewed |
-| `n` | Jump to next unreviewed chapter |
+| `Space` | Toggle chapter reviewed |
+| `n` | Jump to next unreviewed |
 | `?` | Show shortcut help |
-
-### Walkthrough Mode
-
-Click **Walkthrough mode** in the sidebar for a full-screen, one-chapter-at-a-time presentation. Navigate with arrow keys or on-screen buttons. Diffs auto-reveal with staggered animations.
-
-### Asking Questions
-
-- Hover over a chapter's narrative text → click **Ask about this**
-- Hover over a diff hunk header → click the chat icon
-- Or open the chat panel from the sidebar for open-ended questions
-
-The chat has full context of the PR analysis and can explain any part in detail.
 
 ---
 
@@ -240,99 +143,81 @@ The chat has full context of the PR analysis and can explain any part in detail.
 
 ### Prerequisites
 
-- **Node.js** 20+
-- **npm** (ships with Node)
+- Node.js 20+
 
 ### Setup
 
 ```bash
-git clone git@github.com:sp0n-7/narrative-review.git
+git clone https://github.com/jorgealegre/narrative-review.git
 cd narrative-review
 npm install
 ```
 
-### Build Pipelines
-
-The project has three build targets:
+### Build targets
 
 | Command | Output | Purpose |
 |---------|--------|---------|
-| `npm run build` | `.next/` | Next.js web app (local dev) |
 | `npm run build:static` | `dist-static/index.html` | Self-contained HTML review page (Vite + singlefile) |
-| `npm run build:action` | `dist-action/index.js` + `template.html` | Bundled GitHub Action (ncc) |
-| `npm run build:all` | Both `dist-*` dirs | Runs `build:static` then `build:action` |
+| `npm run build:action` | `dist-action/index.js` + `template.html` | Bundled action (ncc) |
+| `npm run build:all` | Both | Runs `build:static` then `build:action` |
+| `npm run lint` | — | ESLint |
 
-### How Deployment Works
+### Local smoke test
 
-The `dist-action/` and `dist-static/` directories are **committed to the repo**. Consumers reference the action via `uses: sp0n-7/narrative-review@main`, which runs `dist-action/index.js` directly. This means changes are live the moment they merge to `main`.
+Build first, then inject a synthetic review into the static bundle:
 
-### Making Changes
+```bash
+npm run build:all
+node tools/make-fixture.mjs
+open dist-static/fixture.html
+```
 
-1. Edit source files in `action/`, `static/`, or `src/`
-2. A **CI workflow** (`.github/workflows/build.yml`) automatically rebuilds `dist-action/` and `dist-static/` on every PR and commits the result back to your branch if anything changed
-3. Open a PR against `main` — the `build` status check must pass before merging
-4. Once merged, all repos using `@main` pick up the new version immediately
+### How deployment works
 
-You can also rebuild locally with `npm run build:all` if you want to inspect the output before pushing.
+The `dist-action/` and `dist-static/` directories are **committed to the repo**. Consumers reference the action via `uses: jorgealegre/narrative-review@main`, which runs `dist-action/index.js` directly. Changes are live the moment they merge to `main`.
+
+A CI workflow (`.github/workflows/build.yml`) rebuilds `dist-action/` and `dist-static/` on every PR and commits the result back to your branch if anything changed.
 
 ---
 
 ## Architecture
 
 ```
+action/
+├── index.ts              # Action entry: fetch PR → analyze → render HTML → deploy
+├── github-api.ts         # GitHub REST wrappers
+└── deploy-to-pages.ts    # gh-pages upload helper
 src/
-├── app/
-│   ├── api/
-│   │   ├── analyze/         # PR analysis endpoint
-│   │   ├── analyze-local/   # Local branch analysis endpoint
-│   │   ├── approve/         # GitHub review submission
-│   │   ├── chat/            # Streaming AI chat
-│   │   ├── comment/         # GitHub line comments
-│   │   └── local-branches/  # Branch discovery
-│   ├── review/              # Review page
-│   ├── layout.tsx           # Root layout + providers
-│   ├── page.tsx             # Landing page
-│   └── globals.css          # Animations + fancy mode styles
-├── components/
-│   ├── ReviewContainer.tsx  # Main review layout orchestrator
-│   ├── ChapterCard.tsx      # Individual chapter renderer
-│   ├── DiffView.tsx         # Diff rendering (3 modes)
-│   ├── ChapterTimeline.tsx  # Sidebar navigation
-│   ├── ProgressTracker.tsx  # Top progress bar
-│   ├── ChatPanel.tsx        # AI chat drawer
-│   ├── WalkthroughMode.tsx  # Cinematic walkthrough
-│   └── FancyModeToggle.tsx  # UI mode toggle
-├── hooks/
-│   ├── useReviewState.ts    # Review progress persistence
-│   └── useFancyMode.tsx     # UI mode context
+├── components/           # React UI (shared with static bundle)
+├── hooks/                # useReviewState, useFancyMode, useTheme
 └── lib/
-    ├── types.ts             # Shared type definitions
-    ├── github.ts            # GitHub CLI wrapper
-    ├── local-git.ts         # Local git operations
-    ├── diff-parser.ts       # Unified diff parser
-    ├── analyzer.ts          # Claude narrative analysis
-    └── coverage-verifier.ts # Hunk coverage checker
+    ├── types.ts          # Shared types
+    ├── diff-parser.ts    # Unified diff parser
+    ├── analyzer.ts       # Claude narrative analysis + prompt caching
+    └── coverage-verifier.ts  # Deterministic hunk coverage check
+static/                   # Vite single-file bundle entry
+tools/make-fixture.mjs    # Local fixture injector
 ```
 
-### How Analysis Works
+### Analysis flow
 
-1. **Fetch** — Raw diff and metadata from GitHub (`gh pr diff/view`) or local git (`git diff`)
-2. **Parse** — Unified diff is parsed into structured files and hunks
-3. **Analyze** — Full diff + PR description sent to Claude with a system prompt that instructs causal ordering
-4. **Verify** — Deterministic coverage check ensures every hunk is referenced by at least one chapter
-5. **Backfill** — Any uncovered hunks are grouped into an "Uncategorized Changes" chapter with warnings
-6. **Cache** — Results stored in `localStorage` for instant reload
+1. **Fetch** — diff + metadata via GitHub REST API
+2. **Parse** — unified diff parsed into files and hunks
+3. **Analyze** — full diff + PR description sent to Claude with a system prompt instructing causal ordering
+4. **Verify** — deterministic check ensures every hunk is referenced by at least one chapter
+5. **Backfill** — uncovered hunks grouped into an "Uncategorized" chapter with warnings
+6. **Render** — review data injected into a pre-built HTML bundle as base64
+7. **Deploy** — HTML pushed to `gh-pages` branch (or uploaded as artifact)
 
 ---
 
-## Tech Stack
+## Tech stack
 
-- **Next.js 16** (App Router) — framework
-- **React 19** — UI
-- **Tailwind CSS 4** — styling
-- **Anthropic SDK** — Claude API
-- **Lucide React** — icons
-- **GitHub CLI** (`gh`) — GitHub integration via child processes
+- **React 19** + **Tailwind CSS 4** — UI
+- **Vite** + **vite-plugin-singlefile** — static bundle
+- **@vercel/ncc** — action bundle
+- **@anthropic-ai/sdk** — Claude API with prompt caching
+- **@actions/core** + **@actions/github** — action runtime
 - **TypeScript** — throughout
 
 ---

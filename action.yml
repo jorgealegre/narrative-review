@@ -1,5 +1,9 @@
 name: "Narrative Review"
 description: "AI-powered narrative code review for pull requests"
+author: "jorgealegre"
+branding:
+  icon: "book-open"
+  color: "purple"
 inputs:
   anthropic-api-key:
     description: "Anthropic API key for Claude"
