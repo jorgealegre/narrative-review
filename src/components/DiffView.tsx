@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useCallback, useEffect } from "react";
-import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { ExternalLink, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { DiffSettings, PRComment } from "@/lib/types";
 import hljs from "highlight.js/lib/common";
 import "highlight.js/styles/github.css";
@@ -34,9 +34,7 @@ interface DiffViewProps {
   fileName: string;
   annotation?: string;
   githubUrl?: string;
-  prInfo?: { owner: string; repo: string; number: number };
   settings?: DiffSettings;
-  onAskAbout?: (question: string) => void;
   comments?: PRComment[];
   fileContent?: string;
 }
@@ -198,51 +196,6 @@ function buildWhitespaceAwareOrder(lines: string[], ws: WsAnalysis): number[] {
   return order;
 }
 
-interface CommentFormProps {
-  onSubmit: (body: string) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-}
-
-function CommentForm({ onSubmit, onCancel, loading }: CommentFormProps) {
-  const [text, setText] = useState("");
-
-  return (
-    <div className="bg-bg-tertiary/80 border border-bd-primary rounded-lg mx-4 my-1 p-3">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Write a comment..."
-        className="w-full bg-bg-secondary border border-bd-primary rounded px-3 py-2 text-sm text-t-primary placeholder-t-tertiary focus:outline-none focus:border-accent/50 resize-none"
-        rows={3}
-        autoFocus
-        disabled={loading}
-      />
-      <div className="flex items-center justify-end gap-2 mt-2">
-        <button
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs text-t-tertiary hover:text-t-secondary transition-colors"
-          disabled={loading}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => text.trim() && onSubmit(text.trim())}
-          disabled={!text.trim() || loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-accent hover:bg-accent/80 disabled:bg-bg-tertiary disabled:text-t-tertiary text-white rounded transition-colors"
-        >
-          {loading ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Send className="w-3 h-3" />
-          )}
-          Comment on GitHub
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function InlineComment({ comment }: { comment: PRComment }) {
   return (
     <div className="bg-bg-tertiary/60 border-l-2 border-accent/50 mx-4 my-1 px-3 py-2 rounded-r-lg">
@@ -262,25 +215,11 @@ function InlineComment({ comment }: { comment: PRComment }) {
 function UnifiedDiffLines({
   lines,
   settings,
-  prInfo,
-  fileName,
-  commentLine,
-  setCommentLine,
-  commentLoading,
-  postedComments,
-  handleComment,
   prComments,
   language,
 }: {
   lines: string[];
   settings: DiffSettings;
-  prInfo?: { owner: string; repo: string; number: number };
-  fileName: string;
-  commentLine: number | null;
-  setCommentLine: (v: number | null) => void;
-  commentLoading: boolean;
-  postedComments: Set<number>;
-  handleComment: (body: string) => Promise<void>;
   prComments?: PRComment[];
   language: string;
 }) {
@@ -373,8 +312,6 @@ function UnifiedDiffLines({
     const isDemoted = wsAnalysis.demoted.has(lineIdx);
     const nums = lineNumbers[lineIdx];
     const newLineNum = nums.new;
-    const canComment = prInfo && newLineNum !== null && type !== "header";
-    const hasComment = newLineNum !== null && postedComments.has(newLineNum);
     const matchedRemoveIdx = isDemoted ? wsAnalysis.addToRemove.get(lineIdx) : undefined;
     const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
 
@@ -390,16 +327,7 @@ function UnifiedDiffLines({
 
     return (
       <div key={key}>
-        <div
-          className={`px-4 ${bg} ${textColor} font-mono flex items-center group/line ${
-            canComment ? "cursor-pointer hover:brightness-125" : ""
-          }`}
-          onClick={() => {
-            if (canComment && newLineNum !== null) {
-              setCommentLine(commentLine === newLineNum ? null : newLineNum);
-            }
-          }}
-        >
+        <div className={`px-4 ${bg} ${textColor} font-mono flex items-center`}>
           <span className="w-8 text-right mr-1 text-bd-primary text-xs select-none flex-shrink-0">
             {isDemoted ? (demotedOldNum ?? "") : (nums.old ?? "")}
           </span>
@@ -412,30 +340,14 @@ function UnifiedDiffLines({
           ) : (
             <span className="flex-1">{displayLine?.slice(1) || " "}</span>
           )}
-          {canComment && (
-            <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
-              {hasComment ? (
-                <MessageSquare className="w-3.5 h-3.5 text-accent-text fill-accent-text/20" />
-              ) : (
-                <MessageSquare className="w-3.5 h-3.5 text-t-tertiary" />
-              )}
-            </span>
-          )}
         </div>
-        {commentLine === newLineNum && newLineNum !== null && (
-          <CommentForm
-            onSubmit={handleComment}
-            onCancel={() => setCommentLine(null)}
-            loading={commentLoading}
-          />
-        )}
         {prComments && newLineNum !== null && prComments
           .filter((c) => c.line === newLineNum)
           .map((c) => <InlineComment key={c.id} comment={c} />)
         }
       </div>
     );
-  }, [lines, wsAnalysis, lineNumbers, prInfo, postedComments, commentLine, setCommentLine, commentLoading, handleComment, prComments]);
+  }, [lines, wsAnalysis, lineNumbers, language, prComments]);
 
   return (
     <>
@@ -648,12 +560,10 @@ function ExpandButton({
   direction,
   remaining,
   onClick,
-  loading,
 }: {
   direction: "above" | "below";
   remaining: number;
   onClick: () => void;
-  loading?: boolean;
 }) {
   const count = Math.min(remaining, EXPAND_STEP);
   const Icon = direction === "above" ? ChevronUp : ChevronDown;
@@ -661,19 +571,14 @@ function ExpandButton({
   return (
     <button
       onClick={onClick}
-      disabled={loading}
       className="w-full flex items-center justify-center gap-1.5 py-1 text-xs text-t-tertiary hover:text-accent-text hover:bg-accent-muted transition-colors select-none border-bd-primary/50"
       style={{
         borderTopWidth: direction === "above" ? 0 : 1,
         borderBottomWidth: direction === "below" ? 0 : 1,
       }}
     >
-      {loading ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : (
-        <Icon className="w-3 h-3" />
-      )}
-      {loading ? "Loading file…" : `Show ${count} more line${count !== 1 ? "s" : ""} ${direction}`}
+      <Icon className="w-3 h-3" />
+      {`Show ${count} more line${count !== 1 ? "s" : ""} ${direction}`}
     </button>
   );
 }
@@ -715,16 +620,6 @@ function ExpandedContextLines({
   );
 }
 
-// ── File content cache (shared across DiffView instances) ───────────────
-
-const fileContentCache = new Map<string, string[]>();
-
-function cacheKeyForFile(owner: string, repo: string, number: number, path: string) {
-  return `${owner}/${repo}#${number}:${path}`;
-}
-
-// ── Main DiffView ───────────────────────────────────────────────────────
-
 const DEFAULT_SETTINGS: DiffSettings = { hideWhitespace: false, viewMode: "unified" };
 
 export function DiffView({
@@ -732,19 +627,13 @@ export function DiffView({
   fileName,
   annotation,
   githubUrl,
-  prInfo,
   settings = DEFAULT_SETTINGS,
-  onAskAbout,
   comments,
   fileContent: fileContentProp,
 }: DiffViewProps) {
-  const [commentLine, setCommentLine] = useState<number | null>(null);
-  const [commentLoading, setCommentLoading] = useState(false);
-  const [postedComments, setPostedComments] = useState<Set<number>>(new Set());
   const [expandAbove, setExpandAbove] = useState(0);
   const [expandBelow, setExpandBelow] = useState(0);
   const [fileLines, setFileLines] = useState<string[] | null>(null);
-  const [loadingFile, setLoadingFile] = useState(false);
 
   const language = useMemo(() => getLanguage(fileName), [fileName]);
 
@@ -771,68 +660,23 @@ export function DiffView({
     }
   }, [fileContentProp]);
 
-  const fetchFileContent = useCallback(async () => {
-    if (fileLines || loadingFile || !prInfo) return;
-
-    const key = cacheKeyForFile(prInfo.owner, prInfo.repo, prInfo.number, fileName);
-    const cached = fileContentCache.get(key);
-    if (cached) {
-      setFileLines(cached);
-      return;
-    }
-
-    setLoadingFile(true);
-    try {
-      const params = new URLSearchParams({
-        owner: prInfo.owner,
-        repo: prInfo.repo,
-        number: String(prInfo.number),
-        path: fileName,
-      });
-      const res = await fetch(`/api/file-content?${params}`);
-      if (res.ok) {
-        const { content } = await res.json();
-        const split = (content as string).split("\n");
-        fileContentCache.set(key, split);
-        setFileLines(split);
-      }
-    } catch {
-      // silently fail - expand buttons will just not appear
-    } finally {
-      setLoadingFile(false);
-    }
-  }, [fileLines, loadingFile, prInfo, fileName]);
-
   const handleExpandAbove = useCallback(() => {
-    if (!fileLines && !loadingFile) {
-      fetchFileContent().then(() => {
-        setExpandAbove((n) => n + EXPAND_STEP);
-      });
-    } else {
-      setExpandAbove((n) => n + EXPAND_STEP);
-    }
-  }, [fileLines, loadingFile, fetchFileContent]);
+    setExpandAbove((n) => n + EXPAND_STEP);
+  }, []);
 
   const handleExpandBelow = useCallback(() => {
-    if (!fileLines && !loadingFile) {
-      fetchFileContent().then(() => {
-        setExpandBelow((n) => n + EXPAND_STEP);
-      });
-    } else {
-      setExpandBelow((n) => n + EXPAND_STEP);
-    }
-  }, [fileLines, loadingFile, fetchFileContent]);
+    setExpandBelow((n) => n + EXPAND_STEP);
+  }, []);
 
   const { aboveStart, aboveEnd, belowStart, belowEnd, canExpandAbove, canExpandBelow } = useMemo(() => {
     if (!lineRange || !fileLines) {
-      const hasSource = !!prInfo || !!fileContentProp;
       return {
         aboveStart: 0,
         aboveEnd: 0,
         belowStart: 0,
         belowEnd: 0,
-        canExpandAbove: hasSource && !!lineRange && lineRange.firstLine > 1,
-        canExpandBelow: hasSource && !!lineRange,
+        canExpandAbove: false,
+        canExpandBelow: false,
       };
     }
 
@@ -851,39 +695,14 @@ export function DiffView({
       canExpandAbove: expandAbove < aboveAvailable,
       canExpandBelow: expandBelow < belowAvailable,
     };
-  }, [lineRange, fileLines, expandAbove, expandBelow, prInfo, fileContentProp]);
+  }, [lineRange, fileLines, expandAbove, expandBelow]);
 
-  const handleComment = async (body: string) => {
-    if (!prInfo || commentLine === null) return;
-    setCommentLoading(true);
-    try {
-      const res = await fetch("/api/comment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner: prInfo.owner,
-          repo: prInfo.repo,
-          number: prInfo.number,
-          path: fileName,
-          line: commentLine,
-          body,
-        }),
-      });
-      if (res.ok) {
-        setPostedComments((prev) => new Set([...prev, commentLine]));
-        setCommentLine(null);
-      }
-    } finally {
-      setCommentLoading(false);
-    }
-  };
-
-  const remainingAbove = lineRange
-    ? (fileLines ? lineRange.firstLine - 1 - expandAbove : lineRange.firstLine - 1)
+  const remainingAbove = lineRange && fileLines
+    ? lineRange.firstLine - 1 - expandAbove
     : 0;
   const remainingBelow = lineRange && fileLines
     ? fileLines.length - lineRange.lastLine - expandBelow
-    : EXPAND_STEP;
+    : 0;
 
   return (
     <div className="rounded-lg border border-bd-primary overflow-hidden mb-3 group">
@@ -891,20 +710,6 @@ export function DiffView({
         <div className="flex items-center justify-between">
           <span className="text-sm font-mono text-t-secondary">{fileName}</span>
           <div className="flex items-center gap-2">
-            {onAskAbout && (
-              <button
-                onClick={() => {
-                  const snippet = diffContent.split("\n").slice(0, 30).join("\n");
-                  onAskAbout(
-                    `Explain this code change in ${fileName}:\n\n\`\`\`\n${snippet}\n\`\`\`\n${annotation ? `\nThe annotation says: "${annotation}"` : ""}\n\nWhat exactly is happening here and why?`
-                  );
-                }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-t-tertiary hover:text-accent-text"
-                title="Ask about this code"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-              </button>
-            )}
             {githubUrl && (
               <a
                 href={githubUrl}
@@ -929,7 +734,6 @@ export function DiffView({
             direction="above"
             remaining={Math.max(remainingAbove, 0)}
             onClick={handleExpandAbove}
-            loading={loadingFile}
           />
         )}
 
@@ -951,13 +755,6 @@ export function DiffView({
             <UnifiedDiffLines
               lines={lines}
               settings={settings}
-              prInfo={prInfo}
-              fileName={fileName}
-              commentLine={commentLine}
-              setCommentLine={setCommentLine}
-              commentLoading={commentLoading}
-              postedComments={postedComments}
-              handleComment={handleComment}
               prComments={comments}
               language={language}
             />
@@ -976,12 +773,11 @@ export function DiffView({
         )}
 
         {/* Expand below */}
-        {(canExpandBelow || (!fileLines && lineRange)) && (
+        {canExpandBelow && (
           <ExpandButton
             direction="below"
             remaining={Math.max(remainingBelow, 0)}
             onClick={handleExpandBelow}
-            loading={loadingFile}
           />
         )}
       </div>

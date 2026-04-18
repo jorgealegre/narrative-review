@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { CoverageResult, AnalysisMetrics } from "@/lib/types";
 import { ShieldCheck, AlertTriangle, Coins, BookOpen } from "lucide-react";
 import { useFancyMode } from "@/hooks/useFancyMode";
@@ -43,13 +42,7 @@ export function ProgressTracker({
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="min-w-0 flex-1 mr-4 flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex-shrink-0 text-t-tertiary hover:text-accent-text transition-colors"
-              title="Back to home"
-            >
-              <BookOpen className="w-5 h-5" />
-            </Link>
+            <BookOpen className="w-5 h-5 flex-shrink-0 text-t-tertiary" />
             {prUrl ? (
               <a
                 href={prUrl}

@@ -401,7 +401,6 @@ export function WalkthroughMode({
                       fileName={hunk.file}
                       annotation={hunk.annotation}
                       settings={diffSettings}
-                      prInfo={review.prInfo}
                       fileContent={fileContents?.[hunk.file]}
                     />
                   </div>

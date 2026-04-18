@@ -8,15 +8,10 @@ import { ChapterCard } from "./ChapterCard";
 import { ChapterTimeline } from "./ChapterTimeline";
 import { ProgressTracker } from "./ProgressTracker";
 import { WalkthroughMode } from "./WalkthroughMode";
-import { ChatPanel } from "./ChatPanel";
 import {
-  ThumbsUp,
-  MessageSquareWarning,
   ExternalLink,
   Keyboard,
-  RefreshCw,
   Play,
-  MessageCircle,
   EyeOff,
   Eye,
   Rows3,
@@ -31,36 +26,22 @@ import {
 
 interface ReviewContainerProps {
   review: NarrativeReview;
-  fromCache?: boolean;
-  onReanalyze?: () => void;
-  mode?: "interactive" | "static";
   fileContents?: Record<string, string>;
 }
 
-export function ReviewContainer({ review, fromCache, onReanalyze, mode = "interactive", fileContents }: ReviewContainerProps) {
-  const isStatic = mode === "static";
+export function ReviewContainer({ review, fileContents }: ReviewContainerProps) {
   const { fancy } = useFancyMode();
-  const isLocal = review.prInfo.number === 0;
-  const prId = isLocal
-    ? `local:${review.prInfo.repo}:${review.prInfo.baseRef}:${review.prInfo.headRef}`
-    : `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
-  const prUrl = isLocal
-    ? ""
-    : `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
+  const prId = `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
+  const prUrl = `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
 
   const { toggleChapter, isChapterReviewed, reviewedCount, setNote, state: reviewState } =
     useReviewState(prId);
 
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
-  const [approvalState, setApprovalState] = useState<
-    "idle" | "loading" | "approved" | "changes-requested" | "error"
-  >("idle");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [overviewActive, setOverviewActive] = useState(true);
   const [walkthroughMode, setWalkthroughMode] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInitialQuestion, setChatInitialQuestion] = useState<string | undefined>();
   const [showCelebration, setShowCelebration] = useState(false);
   const [diffSettings, setDiffSettings] = useState<DiffSettings>({
     hideWhitespace: false,
@@ -91,7 +72,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
     (c) => c.id === activeChapterId
   );
 
-  // Keyboard navigation
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -134,17 +114,12 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
     return () => window.removeEventListener("keydown", handleKey);
   }, [activeIndex, activeChapterId, review.chapters, scrollToChapter, toggleChapter, isChapterReviewed]);
 
-  const handleAskAbout = useCallback((question: string) => {
-    setChatInitialQuestion(question);
-    setChatOpen(true);
-  }, []);
-
   const handleExportMarkdown = useCallback(() => {
     const lines: string[] = [];
     lines.push(`# ${review.title}\n`);
     lines.push(`**Summary:** ${review.summary}\n`);
     lines.push(`**Root cause:** ${review.rootCause}\n`);
-    if (!isLocal) lines.push(`**PR:** ${prUrl}\n`);
+    lines.push(`**PR:** ${prUrl}\n`);
     lines.push(`**Files changed:** ${review.prInfo.changedFiles} (+${review.prInfo.additions}/-${review.prInfo.deletions})\n`);
     lines.push(`---\n`);
 
@@ -167,54 +142,10 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `narrative-review-${review.prInfo.repo}-${review.prInfo.number || "local"}.md`;
+    a.download = `narrative-review-${review.prInfo.repo}-${review.prInfo.number}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [review, prUrl, isLocal, reviewState.notes]);
-
-  const handleApprove = async () => {
-    setApprovalState("loading");
-    try {
-      const res = await fetch("/api/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner: review.prInfo.owner,
-          repo: review.prInfo.repo,
-          number: review.prInfo.number,
-          action: "approve",
-          body: `Reviewed via Narrative Review — ${review.chapters.length} chapters, all changes verified.`,
-        }),
-      });
-      if (!res.ok) throw new Error("Approval failed");
-      setApprovalState("approved");
-    } catch {
-      setApprovalState("error");
-    }
-  };
-
-  const handleRequestChanges = async () => {
-    const comment = prompt("What changes are needed?");
-    if (!comment) return;
-    setApprovalState("loading");
-    try {
-      const res = await fetch("/api/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner: review.prInfo.owner,
-          repo: review.prInfo.repo,
-          number: review.prInfo.number,
-          action: "request-changes",
-          body: comment,
-        }),
-      });
-      if (!res.ok) throw new Error("Request changes failed");
-      setApprovalState("changes-requested");
-    } catch {
-      setApprovalState("error");
-    }
-  };
+  }, [review, prUrl, reviewState.notes]);
 
   return (
     <div className="min-h-screen bg-bg-primary text-t-primary relative">
@@ -235,13 +166,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
       />
 
       <div className="flex">
-        {/* Sidebar */}
         <aside
           className={`flex-shrink-0 border-r border-bd-primary sticky top-[73px] h-[calc(100vh-73px)] transition-[width,opacity] duration-300 ease-in-out ${
             sidebarCollapsed ? "w-12" : "w-80"
           }`}
         >
-          {/* Collapsed state — icon strip */}
           <div className={`flex flex-col items-center gap-1 py-3 transition-opacity duration-200 ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none absolute inset-0"}`}>
             <button
               onClick={() => setSidebarCollapsed(false)}
@@ -258,31 +187,18 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             >
               <Play className="w-4 h-4" />
             </button>
-            {!isStatic && (
-              <button
-                onClick={() => setChatOpen((s) => !s)}
-                className="p-2 text-accent-text hover:text-accent-text hover:bg-accent-muted rounded-lg transition-colors"
-                title="Ask about this PR"
-              >
-                <MessageCircle className="w-4 h-4" />
-              </button>
-            )}
-            {!isLocal && (
-              <a
-                href={prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary rounded-lg transition-colors"
-                title="View on GitHub"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
+            <a
+              href={prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+              title="View on GitHub"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
           </div>
 
-          {/* Expanded state */}
           <div className={`h-full flex flex-col overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
-            {/* Header with collapse button */}
             <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
               <span className="text-xs text-t-tertiary uppercase tracking-wider font-semibold">Chapters</span>
               <button
@@ -294,7 +210,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
               </button>
             </div>
 
-            {/* Primary actions — prominent */}
             <div className="px-3 pb-3 flex-shrink-0 space-y-1.5">
               <button
                 onClick={() => setWalkthroughMode(true)}
@@ -303,31 +218,17 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 <Play className="w-4 h-4" />
                 Guided Walkthrough
               </button>
-              <div className="flex gap-1.5">
-                {!isStatic && (
-                  <button
-                    onClick={() => setChatOpen((s) => !s)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-bg-tertiary/80 border border-bd-primary/50 text-t-secondary hover:bg-bg-tertiary hover:border-t-tertiary transition-colors"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Ask AI
-                  </button>
-                )}
-                {!isLocal && (
-                  <a
-                    href={prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-bg-tertiary/80 border border-bd-primary/50 text-t-secondary hover:bg-bg-tertiary hover:border-t-tertiary transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    GitHub
-                  </a>
-                )}
-              </div>
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-bg-tertiary/80 border border-bd-primary/50 text-t-secondary hover:bg-bg-tertiary hover:border-t-tertiary transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                GitHub
+              </a>
             </div>
 
-            {/* Chapter list */}
             <div className="flex-1 overflow-y-auto px-2 pb-2">
               <ChapterTimeline
                 review={review}
@@ -345,18 +246,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
               />
             </div>
 
-            {/* Secondary actions & approval */}
-            <div className="flex-shrink-0 border-t border-bd-primary px-3 py-3 space-y-2">
+            <div className="flex-shrink-0 border-t border-bd-primary px-3 py-3">
               <div className="flex items-center gap-1.5 flex-wrap">
-                {onReanalyze && (
-                  <button
-                    onClick={onReanalyze}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Re-analyze{fromCache ? " (cached)" : ""}
-                  </button>
-                )}
                 <button
                   onClick={handleExportMarkdown}
                   className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-t-tertiary hover:text-t-secondary hover:bg-bg-tertiary/60 transition-colors"
@@ -372,69 +263,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                   Keys
                 </button>
               </div>
-
-              {/* Approval -- only for GitHub PRs, not in static mode */}
-              {!isLocal && !isStatic && (
-                <div className="space-y-1.5">
-                  {approvalState === "approved" ? (
-                    <div className="flex items-center gap-2 text-green-400 text-sm px-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      PR approved
-                    </div>
-                  ) : approvalState === "changes-requested" ? (
-                    <div className="flex items-center gap-2 text-amber-400 text-sm px-1">
-                      <MessageSquareWarning className="w-4 h-4" />
-                      Changes requested
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={handleApprove}
-                        disabled={!allReviewed || approvalState === "loading"}
-                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                          allReviewed
-                            ? "bg-green-600 hover:bg-green-500 text-white"
-                            : "bg-bg-tertiary text-t-tertiary cursor-not-allowed"
-                        }`}
-                        title={allReviewed ? "Approve this PR" : "Review all chapters first"}
-                      >
-                        <ThumbsUp className="w-3 h-3" />
-                        {approvalState === "loading" ? "..." : "Approve"}
-                      </button>
-                      <button
-                        onClick={handleRequestChanges}
-                        disabled={approvalState === "loading"}
-                        className="flex-1 py-1.5 px-2 rounded-lg text-xs text-t-tertiary hover:text-t-primary hover:bg-bg-tertiary transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <MessageSquareWarning className="w-3 h-3" />
-                        Changes
-                      </button>
-                    </div>
-                  )}
-                  {approvalState === "error" && (
-                    <p className="text-[10px] text-red-400 px-1">
-                      Failed — check gh CLI auth.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Local branch info */}
-              {isLocal && (
-                <p className="text-[10px] text-t-tertiary px-1">
-                  Local &middot;{" "}
-                  <span className="text-t-tertiary">{review.prInfo.headRef}</span>
-                  {" "}vs{" "}
-                  <span className="text-t-tertiary">{review.prInfo.baseRef}</span>
-                </p>
-              )}
             </div>
           </div>
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 min-w-0 px-6 py-8">
-          {/* Overview / Chapter 0 */}
           <div
             id="review-overview"
             className={`mb-8 p-5 rounded-xl ${
@@ -462,7 +295,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             </div>
           </div>
 
-          {/* Diff settings toolbar */}
           <div className="flex items-center justify-between mb-4 px-1">
             <div className="flex items-center gap-1 bg-bg-secondary border border-bd-primary rounded-lg p-0.5">
               {([
@@ -515,7 +347,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             </div>
           </div>
 
-          {/* Chapters */}
           <div className="space-y-6">
             {review.chapters.map((chapter, i) => (
               <ChapterCard
@@ -526,10 +357,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
                 isActive={chapter.id === activeChapterId}
                 onToggleReview={() => toggleChapter(chapter.id)}
                 onActivate={() => setActiveChapterId(chapter.id)}
-                prUrl={isLocal ? undefined : prUrl}
-                prInfo={isLocal ? undefined : review.prInfo}
+                prUrl={prUrl}
                 diffSettings={diffSettings}
-                onAskAbout={isStatic ? undefined : handleAskAbout}
                 note={reviewState.notes[chapter.id] || ""}
                 onNoteChange={(n) => setNote(chapter.id, n)}
                 defaultExpanded={allExpanded}
@@ -538,34 +367,20 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
             ))}
           </div>
 
-          {/* End of review */}
           {allReviewed && (
             <div className="mt-8 text-center py-8">
               <p className="text-green-400 text-lg font-semibold">
                 All chapters reviewed
               </p>
               <p className="text-t-tertiary text-sm mt-1">
-                {isStatic ? "Review complete." : "You can now approve the PR from the sidebar."}
+                Review complete.
               </p>
             </div>
           )}
         </main>
 
-        {/* Chat panel — in-flow, right side */}
-        {!isStatic && (
-          <ChatPanel
-            review={review}
-            isOpen={chatOpen}
-            onClose={() => {
-              setChatOpen(false);
-              setChatInitialQuestion(undefined);
-            }}
-            initialQuestion={chatInitialQuestion}
-          />
-        )}
       </div>
 
-      {/* Walkthrough mode overlay */}
       {walkthroughMode && (
         <WalkthroughMode
           review={review}
@@ -577,7 +392,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
         />
       )}
 
-      {/* Keyboard shortcuts modal */}
       {showShortcuts && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
@@ -608,7 +422,6 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
         </div>
       )}
 
-      {/* Celebration overlay */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
           <div className="animate-celebrate bg-bg-secondary/90 border border-green-500/30 rounded-2xl px-8 py-6 text-center shadow-2xl shadow-green-500/10">

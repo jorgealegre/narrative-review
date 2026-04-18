@@ -1,6 +1,6 @@
 "use client";
 
-import { Chapter, PRInfo, DiffSettings } from "@/lib/types";
+import { Chapter, DiffSettings } from "@/lib/types";
 import { DiffView } from "./DiffView";
 import {
   CheckCircle2,
@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   Shield,
-  MessageCircle,
   StickyNote,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -28,9 +27,7 @@ interface ChapterCardProps {
   onToggleReview: () => void;
   onActivate: () => void;
   prUrl?: string;
-  prInfo?: PRInfo;
   diffSettings?: DiffSettings;
-  onAskAbout?: (question: string) => void;
   note?: string;
   onNoteChange?: (note: string) => void;
   defaultExpanded?: boolean;
@@ -45,9 +42,7 @@ export function ChapterCard({
   onToggleReview,
   onActivate,
   prUrl,
-  prInfo,
   diffSettings,
-  onAskAbout,
   note,
   onNoteChange,
   defaultExpanded = true,
@@ -136,26 +131,12 @@ export function ChapterCard({
             )}
 
             {/* Narrative */}
-            <div className="group/narrative mb-4">
+            <div className="mb-4">
               <div className="text-sm text-t-secondary leading-relaxed">
                 <ReactMarkdown components={mdComponents}>
                   {chapter.narrative}
                 </ReactMarkdown>
               </div>
-              {onAskAbout && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAskAbout(
-                      `Regarding chapter "${chapter.title}": ${chapter.narrative}\n\nCan you expand on this explanation? What exactly is happening here and why?`
-                    );
-                  }}
-                  className="mt-2 flex items-center gap-1.5 text-xs text-t-tertiary hover:text-accent-text transition-colors opacity-0 group-hover/narrative:opacity-100"
-                >
-                  <MessageCircle className="w-3 h-3" />
-                  Ask about this
-                </button>
-              )}
             </div>
 
             {/* Safety notes */}
@@ -242,9 +223,7 @@ export function ChapterCard({
                     githubUrl={
                       prUrl ? `${prUrl}/files#diff-${encodeURIComponent(hunk.file)}` : undefined
                     }
-                    prInfo={prInfo}
                     settings={diffSettings}
-                    onAskAbout={onAskAbout}
                     fileContent={fileContents?.[hunk.file]}
                   />
                 ))}
