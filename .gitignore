@@ -31,5 +31,6 @@ yarn-error.log*
 .env.local
 
 # local dev & fixtures
-.claude/
+.claude/*
+!.claude/skills/
 dist-static/fixture.html
