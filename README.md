@@ -35,6 +35,26 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 
 ## Install
 
+> ### ⚠️ Private repos — read this first
+>
+> GitHub Pages sites are **publicly accessible on Free / Pro / Team plans even when the source repository is private.** If this action deployed your review HTML to Pages, your PR diffs, changed file contents, and review text would be served at a world-readable URL.
+>
+> **Default behavior (safe):** When the action detects a private repo, it skips the Pages deploy and uploads the review as a workflow artifact (downloadable only by users with repo access).
+>
+> **Opt-in (only if safe on your plan):** Set `allow-public-pages-on-private-repo: true` on the action step. Do this only if:
+> - Your repo is on GitHub Enterprise Cloud with Pages access control configured, OR
+> - The content really is OK to be public
+>
+> Public repos: not affected — Pages deploy runs as normal.
+
+> **Using Claude Code?** Skip the manual steps. Run this once from any repo you want to install the action in:
+>
+> ```
+> /skill install github:jorgealegre/narrative-review/.claude/skills/narrative-review-setup
+> ```
+>
+> Then invoke `/narrative-review-setup` — Claude walks you through workflow creation, API key secret, and Pages enablement end-to-end.
+
 ### 1. Add the workflow
 
 Create `.github/workflows/narrative-review.yml`:
@@ -46,9 +66,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
-  checks: write
-  contents: write
-  pull-requests: write
+  checks: write      # post a GitHub check run with review summary
+  contents: write    # create/update the gh-pages branch
+  pages: write       # read Pages config to resolve the review URL
+  pull-requests: write  # add the review link to the PR description
 
 jobs:
   review:
@@ -60,7 +81,7 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'wip')
       )
     steps:
-      - uses: jorgealegre/narrative-review@main
+      - uses: jorgealegre/narrative-review@v1
         id: narrative
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -77,19 +98,26 @@ jobs:
 
 ### 2. Add the Anthropic API key
 
-**Settings → Secrets and variables → Actions → New repository secret**
+Via UI: **Settings → Secrets and variables → Actions → New repository secret** → name `ANTHROPIC_API_KEY`.
 
-- `ANTHROPIC_API_KEY` — get one from [console.anthropic.com](https://console.anthropic.com)
+Or via `gh` CLI:
 
-### 3. (Optional) Serve reviews from GitHub Pages
+```bash
+gh secret set ANTHROPIC_API_KEY -R <owner>/<repo>
+# paste the key and press Ctrl+D
+```
 
-For direct `https://…` review links instead of artifact downloads:
+Get a key at [console.anthropic.com](https://console.anthropic.com). New accounts get $5 free credit.
 
-1. `git checkout --orphan gh-pages && git commit --allow-empty -m "init" && git push origin gh-pages`
-2. **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`**
-3. Add a `.nojekyll` file to the `gh-pages` branch
+### 3. Enable GitHub Pages (one click, first time only)
 
-Reviews will be served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/`.
+On the first PR the action automatically creates a `gh-pages` branch and seeds it with `.nojekyll` + a placeholder `index.html`. Because the GitHub-provided `GITHUB_TOKEN` lacks admin scope, you'll also need to flip Pages on once:
+
+**Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)` → Save**
+
+From the next PR onward everything is automatic — reviews are served at `https://<owner>.github.io/<repo>/reviews/<pr-number>-<random-slug>/` and the URL is posted back to the PR description. The random slug (128 bits of entropy) makes review URLs unguessable; only people who see the PR description or check run will have the link. `robots.txt` on the site blocks search-engine indexing.
+
+If you skip this step, the action falls back to uploading the review HTML as a workflow artifact (downloadable from the Actions tab of the run).
 
 ---
 
@@ -104,6 +132,7 @@ Reviews will be served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/
 | `max-lines` | `5000` | Max total lines changed before skipping |
 | `max-cost` | `2.00` | Max estimated cost (USD) before skipping |
 | `force` | `false` | Bypass all size/cost/line checks |
+| `allow-public-pages-on-private-repo` | `false` | Opt in to Pages deploy on private repos. See security warning above. |
 
 ## Outputs
 
@@ -124,6 +153,28 @@ The action skips automatically when the PR is a draft, labeled `wip`, larger tha
 | `claude-haiku-4-5-20251001` | ~$0.01 |
 | `claude-sonnet-4-6` | ~$0.10 |
 | `claude-opus-4-6` | ~$0.50 |
+
+---
+
+## Troubleshooting
+
+**"404 / There isn't a GitHub Pages site here" when I open the review URL**
+The `gh-pages` branch was created but Pages hasn't been enabled yet. Go to **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`** and click Save. Pages builds in ~30-60s, then reload.
+
+**Action warns "Token lacks permission to enable GitHub Pages"**
+Expected on first run. GitHub's auto-provided `GITHUB_TOKEN` can write to the `gh-pages` branch but cannot enable Pages itself (admin scope required). One-click manual enable per repo — see above.
+
+**PR description shows "Download the review" instead of a live URL**
+Either the `gh-pages` deploy failed (check the action logs) or Pages isn't enabled yet. The review is available as a workflow artifact — click the run in the Actions tab, scroll to Artifacts, download and open `index.html`.
+
+**Two check-run lines appear on the PR ("review" and "Narrative Review")**
+Normal. `review` is GitHub's auto-generated status for the workflow job; `Narrative Review` is our custom check-run that carries the chapter count and a "View Review" link.
+
+**Action skipped unexpectedly**
+Check the action log for the skip reason. Guards: draft PR, `wip` label, > 5000 lines, estimated cost > $2. Force with the `run-narrative-review` label or set `force: true` in the step inputs.
+
+**Rate limit / 429 from Claude**
+Raise the `max-cost` input or switch to `claude-haiku-4-5-20251001` for cheaper runs. Prompt caching amortizes the system prompt across runs within a 5-minute window.
 
 ---
 
