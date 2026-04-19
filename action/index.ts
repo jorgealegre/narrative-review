@@ -18,6 +18,8 @@ async function run(): Promise<void> {
   const maxLines = parseInt(core.getInput("max-lines") || "5000", 10);
   const maxCost = parseFloat(core.getInput("max-cost") || "2.00");
   const force = core.getInput("force") === "true";
+  const allowPublicPagesOnPrivateRepo =
+    core.getInput("allow-public-pages-on-private-repo") === "true";
 
   // Set the Anthropic API key for the SDK
   process.env.ANTHROPIC_API_KEY = anthropicApiKey;
@@ -156,26 +158,50 @@ async function run(): Promise<void> {
     fs.writeFileSync(path.join(outputDir, "index.html"), html, "utf-8");
     core.info("Review HTML written to artifact directory.");
 
+    // Layer 1: private-repo guard. GitHub Pages sites are publicly accessible
+    // on Free/Pro/Team plans even when the source repo is private — the review
+    // HTML (diff + file contents + PR body) would be served at a world-
+    // readable URL. Skip the Pages deploy by default; require explicit opt-in.
+    let repoIsPrivate = false;
+    try {
+      const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
+      repoIsPrivate = repoMeta.private === true;
+    } catch (e) {
+      core.warning(`Could not determine repo visibility (non-fatal): ${e instanceof Error ? e.message : e}`);
+    }
+    const skipPagesForPrivate = repoIsPrivate && !allowPublicPagesOnPrivateRepo;
+    if (skipPagesForPrivate) {
+      core.warning(
+        "Repository is private. Skipping GitHub Pages deploy because Pages sites " +
+          "are publicly accessible on Free/Pro/Team plans. The review HTML will only " +
+          "be available as a workflow artifact (auth-gated to repo collaborators). " +
+          "To opt in to Pages deploy (e.g. on Enterprise Cloud with access control), " +
+          "set 'allow-public-pages-on-private-repo: true' on the action step."
+      );
+    }
+
     // Deploy to gh-pages
     let reviewUrl = "";
-    try {
-      core.info("Deploying to GitHub Pages...");
-      await deployToPages(octokit, owner, repo, prNumber, html);
-      core.info("Deployed to gh-pages branch.");
-
-      // Determine Pages URL
-      let pagesBaseUrl: string;
+    if (!skipPagesForPrivate) {
       try {
-        const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
-        pagesBaseUrl = pages.html_url || `https://${owner}.github.io/${repo}`;
-      } catch {
-        pagesBaseUrl = `https://${owner}.github.io/${repo}`;
+        core.info("Deploying to GitHub Pages...");
+        const { pathSegment } = await deployToPages(octokit, owner, repo, prNumber, html);
+        core.info("Deployed to gh-pages branch.");
+
+        // Determine Pages URL
+        let pagesBaseUrl: string;
+        try {
+          const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
+          pagesBaseUrl = pages.html_url || `https://${owner}.github.io/${repo}`;
+        } catch {
+          pagesBaseUrl = `https://${owner}.github.io/${repo}`;
+        }
+        pagesBaseUrl = pagesBaseUrl.replace(/\/$/, "");
+        reviewUrl = `${pagesBaseUrl}/reviews/${pathSegment}/`;
+        core.info(`Review URL: ${reviewUrl}`);
+      } catch (e) {
+        core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
       }
-      pagesBaseUrl = pagesBaseUrl.replace(/\/$/, "");
-      reviewUrl = `${pagesBaseUrl}/reviews/${prNumber}/`;
-      core.info(`Review URL: ${reviewUrl}`);
-    } catch (e) {
-      core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
     // Update PR description with review note block

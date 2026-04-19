@@ -30003,10 +30003,24 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.deployToPages = deployToPages;
 const core = __importStar(__nccwpck_require__(7484));
+const crypto = __importStar(__nccwpck_require__(6982));
 const BRANCH = "gh-pages";
+// robots.txt content served at the Pages site root. Doesn't stop intentional
+// access, does stop Google/Bing/etc. from indexing review URLs.
+const ROBOTS_TXT = `User-agent: *
+Disallow: /
+`;
+const ROOT_INDEX_HTML = `<!doctype html>
+<meta name="robots" content="noindex,nofollow">
+<title>Narrative Reviews</title>
+<h1>Narrative Reviews</h1>
+<p>This site hosts per-PR narrative reviews. Reviews are only discoverable via the URL posted on each PR — there is no index.</p>
+`;
 async function ensureBranch(octokit, owner, repo) {
     try {
         await octokit.rest.repos.getBranch({ owner, repo, branch: BRANCH });
+        // Branch exists — make sure robots.txt is present (idempotent, no-op if already there)
+        await ensureRobotsTxt(octokit, owner, repo);
         return;
     }
     catch {
@@ -30014,14 +30028,10 @@ async function ensureBranch(octokit, owner, repo) {
     }
     // Create orphan branch via git refs API. repos.createOrUpdateFileContents
     // refuses to create branches, so we build blob -> tree -> commit -> ref manually.
-    const [{ data: nojekyllBlob }, { data: indexBlob }] = await Promise.all([
+    const [{ data: nojekyllBlob }, { data: indexBlob }, { data: robotsBlob }] = await Promise.all([
         octokit.rest.git.createBlob({ owner, repo, content: "", encoding: "utf-8" }),
-        octokit.rest.git.createBlob({
-            owner,
-            repo,
-            content: "<!doctype html><title>Narrative Reviews</title><h1>Narrative Reviews</h1>",
-            encoding: "utf-8",
-        }),
+        octokit.rest.git.createBlob({ owner, repo, content: ROOT_INDEX_HTML, encoding: "utf-8" }),
+        octokit.rest.git.createBlob({ owner, repo, content: ROBOTS_TXT, encoding: "utf-8" }),
     ]);
     const { data: tree } = await octokit.rest.git.createTree({
         owner,
@@ -30029,6 +30039,7 @@ async function ensureBranch(octokit, owner, repo) {
         tree: [
             { path: ".nojekyll", mode: "100644", type: "blob", sha: nojekyllBlob.sha },
             { path: "index.html", mode: "100644", type: "blob", sha: indexBlob.sha },
+            { path: "robots.txt", mode: "100644", type: "blob", sha: robotsBlob.sha },
         ],
     });
     const { data: commit } = await octokit.rest.git.createCommit({
@@ -30045,6 +30056,28 @@ async function ensureBranch(octokit, owner, repo) {
         sha: commit.sha,
     });
     core.info(`Created orphan ${BRANCH} branch.`);
+}
+async function ensureRobotsTxt(octokit, owner, repo) {
+    try {
+        await octokit.rest.repos.getContent({ owner, repo, path: "robots.txt", ref: BRANCH });
+        return;
+    }
+    catch {
+        // missing — create
+    }
+    try {
+        await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: "robots.txt",
+            message: "Add robots.txt to block indexing",
+            content: Buffer.from(ROBOTS_TXT).toString("base64"),
+            branch: BRANCH,
+        });
+    }
+    catch (e) {
+        core.warning(`Could not write robots.txt (non-fatal): ${e instanceof Error ? e.message : e}`);
+    }
 }
 async function ensurePagesEnabled(octokit, owner, repo) {
     try {
@@ -30082,10 +30115,38 @@ async function ensurePagesEnabled(octokit, owner, repo) {
         core.warning(`Failed to enable GitHub Pages (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 }
+// Look for an existing reviews/<prNumber>-<slug>/ directory. If found, reuse
+// the slug so retriggers on the same PR keep a stable URL across runs.
+async function findExistingSlug(octokit, owner, repo, prNumber) {
+    try {
+        const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: "reviews",
+            ref: BRANCH,
+        });
+        if (!Array.isArray(data))
+            return undefined;
+        const prefix = `${prNumber}-`;
+        const match = data.find((entry) => entry.type === "dir" && entry.name.startsWith(prefix));
+        if (match)
+            return match.name.slice(prefix.length);
+    }
+    catch {
+        // reviews/ dir doesn't exist yet
+    }
+    return undefined;
+}
 async function deployToPages(octokit, owner, repo, prNumber, htmlContent) {
     await ensureBranch(octokit, owner, repo);
     await ensurePagesEnabled(octokit, owner, repo);
-    const filePath = `reviews/${prNumber}/index.html`;
+    // Layer 2: unguessable random slug per PR. 16 bytes = 128 bits of entropy,
+    // enough that URL-guessing attacks are infeasible. Reuse an existing slug
+    // for the same PR so the URL is stable across retriggers.
+    const existing = await findExistingSlug(octokit, owner, repo, prNumber);
+    const slug = existing || crypto.randomBytes(16).toString("hex");
+    const pathSegment = `${prNumber}-${slug}`;
+    const filePath = `reviews/${pathSegment}/index.html`;
     const content = Buffer.from(htmlContent).toString("base64");
     // Check if file already exists (need SHA for updates)
     let existingSha;
@@ -30112,7 +30173,7 @@ async function deployToPages(octokit, owner, repo, prNumber, htmlContent) {
         branch: BRANCH,
         ...(existingSha ? { sha: existingSha } : {}),
     });
-    return filePath;
+    return { pathSegment };
 }
 
 
@@ -30307,6 +30368,7 @@ async function run() {
     const maxLines = parseInt(core.getInput("max-lines") || "5000", 10);
     const maxCost = parseFloat(core.getInput("max-cost") || "2.00");
     const force = core.getInput("force") === "true";
+    const allowPublicPagesOnPrivateRepo = core.getInput("allow-public-pages-on-private-repo") === "true";
     // Set the Anthropic API key for the SDK
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     const octokit = github.getOctokit(githubToken);
@@ -30428,27 +30490,49 @@ async function run() {
         fs.mkdirSync(outputDir, { recursive: true });
         fs.writeFileSync(path.join(outputDir, "index.html"), html, "utf-8");
         core.info("Review HTML written to artifact directory.");
-        // Deploy to gh-pages
-        let reviewUrl = "";
+        // Layer 1: private-repo guard. GitHub Pages sites are publicly accessible
+        // on Free/Pro/Team plans even when the source repo is private — the review
+        // HTML (diff + file contents + PR body) would be served at a world-
+        // readable URL. Skip the Pages deploy by default; require explicit opt-in.
+        let repoIsPrivate = false;
         try {
-            core.info("Deploying to GitHub Pages...");
-            await (0, deploy_1.deployToPages)(octokit, owner, repo, prNumber, html);
-            core.info("Deployed to gh-pages branch.");
-            // Determine Pages URL
-            let pagesBaseUrl;
-            try {
-                const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
-                pagesBaseUrl = pages.html_url || `https://${owner}.github.io/${repo}`;
-            }
-            catch {
-                pagesBaseUrl = `https://${owner}.github.io/${repo}`;
-            }
-            pagesBaseUrl = pagesBaseUrl.replace(/\/$/, "");
-            reviewUrl = `${pagesBaseUrl}/reviews/${prNumber}/`;
-            core.info(`Review URL: ${reviewUrl}`);
+            const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
+            repoIsPrivate = repoMeta.private === true;
         }
         catch (e) {
-            core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+            core.warning(`Could not determine repo visibility (non-fatal): ${e instanceof Error ? e.message : e}`);
+        }
+        const skipPagesForPrivate = repoIsPrivate && !allowPublicPagesOnPrivateRepo;
+        if (skipPagesForPrivate) {
+            core.warning("Repository is private. Skipping GitHub Pages deploy because Pages sites " +
+                "are publicly accessible on Free/Pro/Team plans. The review HTML will only " +
+                "be available as a workflow artifact (auth-gated to repo collaborators). " +
+                "To opt in to Pages deploy (e.g. on Enterprise Cloud with access control), " +
+                "set 'allow-public-pages-on-private-repo: true' on the action step.");
+        }
+        // Deploy to gh-pages
+        let reviewUrl = "";
+        if (!skipPagesForPrivate) {
+            try {
+                core.info("Deploying to GitHub Pages...");
+                const { pathSegment } = await (0, deploy_1.deployToPages)(octokit, owner, repo, prNumber, html);
+                core.info("Deployed to gh-pages branch.");
+                // Determine Pages URL
+                let pagesBaseUrl;
+                try {
+                    const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
+                    pagesBaseUrl = pages.html_url || `https://${owner}.github.io/${repo}`;
+                }
+                catch {
+                    pagesBaseUrl = `https://${owner}.github.io/${repo}`;
+                }
+                pagesBaseUrl = pagesBaseUrl.replace(/\/$/, "");
+                reviewUrl = `${pagesBaseUrl}/reviews/${pathSegment}/`;
+                core.info(`Review URL: ${reviewUrl}`);
+            }
+            catch (e) {
+                core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+            }
         }
         // Update PR description with review note block
         try {

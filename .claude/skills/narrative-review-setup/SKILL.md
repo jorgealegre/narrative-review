@@ -23,7 +23,36 @@ gh repo view --json nameWithOwner,visibility # confirm repo context + public/pri
 If any fail, guide the user to fix before continuing:
 - Not in a git repo → `cd` into one
 - `gh` not authenticated → `gh auth login`
-- Private repo → Pages requires paid plan OR public repo; warn user
+
+## Security branch — private vs public repo
+
+Read the `visibility` field from step 0. This determines the safe install path.
+
+### If `visibility == "PUBLIC"`
+
+Proceed normally. Reviews will be served at `https://<owner>.github.io/<repo>/reviews/<n>-<slug>/` and the site is public by design.
+
+### If `visibility == "PRIVATE"`
+
+**Stop and explain to the user before doing anything:**
+
+> Private repos on GitHub Free, Pro, and Team plans cannot host *private* GitHub Pages sites — if Pages is enabled, the site is public to the internet even though the repo stays private. Your PR diffs, file contents, and review text would be at a world-readable (though unguessable) URL.
+>
+> By default this action detects a private repo and **skips the Pages deploy**. The review is uploaded as a workflow artifact, downloadable only by people with repo access. This is the safe path.
+>
+> You can opt in to Pages deploy by setting `allow-public-pages-on-private-repo: true` on the action step, but only do this if:
+> 1. You're on GitHub Enterprise Cloud and have configured Pages access control, OR
+> 2. You're aware the content will be publicly reachable at its URL
+
+Ask the user which path they want:
+
+| Path | Workflow setup |
+|------|----------------|
+| **Artifact only (default, safe)** | Use the standard workflow; do NOT add `allow-public-pages-on-private-repo` |
+| **Pages deploy (opt in, accept public exposure)** | Add `allow-public-pages-on-private-repo: 'true'` to the `with:` block |
+| **Skip install entirely** | If the user has any doubt, this is the right call |
+
+Never default a private-repo user to the Pages-deploy path without explicit confirmation.
 
 ## Step 1 — Create the workflow file
 
@@ -119,7 +148,9 @@ Tell the user:
 - First run will emit a warning: `Token lacks permission to enable GitHub Pages`. This is normal.
 - First run creates the `gh-pages` branch and uploads the review as a workflow artifact.
 
-## Step 4 — Enable GitHub Pages (one-click manual step)
+## Step 4 — Enable GitHub Pages (public repos only)
+
+**Skip this step if the repo is private and the user chose the artifact-only path.** Jump to step 5b instead.
 
 The `GITHUB_TOKEN` cannot enable Pages itself (admin scope required by GitHub API). The user needs to flip it on once per repo.
 
@@ -145,7 +176,17 @@ gh api repos/<owner>/<repo>/pages --jq '{html_url, status, source}'
 
 Expect `status: "built"` and `html_url` pointing at `https://<owner>.github.io/<repo>/`.
 
-## Step 5 — Verify the review renders
+## Step 5b — Verify the artifact (private repo, artifact-only path)
+
+1. Re-trigger the action on the install PR with an empty commit or new push
+2. Wait for the run to complete
+3. Open the run in the Actions tab, scroll to Artifacts
+4. Download `narrative-review-<pr-number>.zip`, extract, open `index.html` locally
+5. Confirm it renders the full narrative review
+
+Skip step 5 and jump to step 6.
+
+## Step 5 — Verify the review renders (public path)
 
 Re-trigger the action so it picks up the now-live Pages config and writes the live URL into the PR description instead of the artifact fallback:
 

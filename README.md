@@ -35,6 +35,18 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 
 ## Install
 
+> ### ⚠️ Private repos — read this first
+>
+> GitHub Pages sites are **publicly accessible on Free / Pro / Team plans even when the source repository is private.** If this action deployed your review HTML to Pages, your PR diffs, changed file contents, and review text would be served at a world-readable URL.
+>
+> **Default behavior (safe):** When the action detects a private repo, it skips the Pages deploy and uploads the review as a workflow artifact (downloadable only by users with repo access).
+>
+> **Opt-in (only if safe on your plan):** Set `allow-public-pages-on-private-repo: true` on the action step. Do this only if:
+> - Your repo is on GitHub Enterprise Cloud with Pages access control configured, OR
+> - The content really is OK to be public
+>
+> Public repos: not affected — Pages deploy runs as normal.
+
 > **Using Claude Code?** Skip the manual steps. Run this once from any repo you want to install the action in:
 >
 > ```
@@ -103,7 +115,7 @@ On the first PR the action automatically creates a `gh-pages` branch and seeds i
 
 **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)` → Save**
 
-From the next PR onward everything is automatic — reviews are served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/` and the URL is posted back to the PR description.
+From the next PR onward everything is automatic — reviews are served at `https://<owner>.github.io/<repo>/reviews/<pr-number>-<random-slug>/` and the URL is posted back to the PR description. The random slug (128 bits of entropy) makes review URLs unguessable; only people who see the PR description or check run will have the link. `robots.txt` on the site blocks search-engine indexing.
 
 If you skip this step, the action falls back to uploading the review HTML as a workflow artifact (downloadable from the Actions tab of the run).
 
@@ -120,6 +132,7 @@ If you skip this step, the action falls back to uploading the review HTML as a w
 | `max-lines` | `5000` | Max total lines changed before skipping |
 | `max-cost` | `2.00` | Max estimated cost (USD) before skipping |
 | `force` | `false` | Bypass all size/cost/line checks |
+| `allow-public-pages-on-private-repo` | `false` | Opt in to Pages deploy on private repos. See security warning above. |
 
 ## Outputs
 
