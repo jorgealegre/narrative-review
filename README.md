@@ -194,7 +194,7 @@ Raise the `max-cost` input or switch to `claude-haiku-4-5-20251001` for cheaper 
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 
 ### Setup
 
