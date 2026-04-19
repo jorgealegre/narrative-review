@@ -48,6 +48,7 @@ on:
 permissions:
   checks: write
   contents: write
+  pages: write
   pull-requests: write
 
 jobs:
@@ -81,15 +82,16 @@ jobs:
 
 - `ANTHROPIC_API_KEY` — get one from [console.anthropic.com](https://console.anthropic.com)
 
-### 3. (Optional) Serve reviews from GitHub Pages
+### 3. That's it
 
-For direct `https://…` review links instead of artifact downloads:
+On the first PR, the action automatically:
 
-1. `git checkout --orphan gh-pages && git commit --allow-empty -m "init" && git push origin gh-pages`
-2. **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)`**
-3. Add a `.nojekyll` file to the `gh-pages` branch
+- Creates a `gh-pages` branch with a `.nojekyll` marker
+- Enables GitHub Pages pointing at that branch
 
-Reviews will be served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/`.
+Reviews are then served at `https://<owner>.github.io/<repo>/reviews/<pr-number>/` and the URL is posted back to the PR description.
+
+If your workflow token lacks `pages: write` permission, the action falls back to uploading the review HTML as a workflow artifact (downloadable from the Actions tab).
 
 ---
 

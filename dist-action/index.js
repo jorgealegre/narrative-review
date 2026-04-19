@@ -29963,12 +29963,46 @@ async function completeCheckRun(octokit, owner, repo, checkRunId, opts) {
 /***/ }),
 
 /***/ 4826:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.deployToPages = deployToPages;
+const core = __importStar(__nccwpck_require__(7484));
 const BRANCH = "gh-pages";
 async function ensureBranch(octokit, owner, repo) {
     try {
@@ -29984,10 +30018,56 @@ async function ensureBranch(octokit, owner, repo) {
             content: Buffer.from("<html><body><h1>Narrative Reviews</h1></body></html>").toString("base64"),
             branch: BRANCH,
         });
+        // Add .nojekyll so Pages serves files with leading underscores as-is
+        await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: ".nojekyll",
+            message: "Disable Jekyll processing",
+            content: "",
+            branch: BRANCH,
+        });
+    }
+}
+async function ensurePagesEnabled(octokit, owner, repo) {
+    try {
+        await octokit.rest.repos.getPages({ owner, repo });
+        // Already enabled — nothing to do
+        return;
+    }
+    catch (e) {
+        const status = e?.status;
+        if (status !== 404) {
+            core.warning(`Could not read Pages config (non-fatal): ${e instanceof Error ? e.message : e}`);
+            return;
+        }
+    }
+    try {
+        await octokit.rest.repos.createPagesSite({
+            owner,
+            repo,
+            source: { branch: BRANCH, path: "/" },
+        });
+        core.info(`Enabled GitHub Pages on ${owner}/${repo} (source: ${BRANCH}).`);
+    }
+    catch (e) {
+        const status = e?.status;
+        if (status === 409) {
+            // Race: someone else enabled it between our checks
+            return;
+        }
+        if (status === 403) {
+            core.warning("Token lacks permission to enable GitHub Pages. " +
+                "Add 'pages: write' to your workflow permissions, or enable Pages manually: " +
+                `https://github.com/${owner}/${repo}/settings/pages (Source: gh-pages branch).`);
+            return;
+        }
+        core.warning(`Failed to enable GitHub Pages (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 }
 async function deployToPages(octokit, owner, repo, prNumber, htmlContent) {
     await ensureBranch(octokit, owner, repo);
+    await ensurePagesEnabled(octokit, owner, repo);
     const filePath = `reviews/${prNumber}/index.html`;
     const content = Buffer.from(htmlContent).toString("base64");
     // Check if file already exists (need SHA for updates)
