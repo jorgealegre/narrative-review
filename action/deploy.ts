@@ -8,26 +8,47 @@ const BRANCH = "gh-pages";
 async function ensureBranch(octokit: Octokit, owner: string, repo: string): Promise<void> {
   try {
     await octokit.rest.repos.getBranch({ owner, repo, branch: BRANCH });
+    return;
   } catch {
-    // Branch doesn't exist — create it with an initial file
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: "index.html",
-      message: "Initialize gh-pages",
-      content: Buffer.from("<html><body><h1>Narrative Reviews</h1></body></html>").toString("base64"),
-      branch: BRANCH,
-    });
-    // Add .nojekyll so Pages serves files with leading underscores as-is
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: ".nojekyll",
-      message: "Disable Jekyll processing",
-      content: "",
-      branch: BRANCH,
-    });
+    // fall through to create orphan
   }
+
+  // Create orphan branch via git refs API. repos.createOrUpdateFileContents
+  // refuses to create branches, so we build blob -> tree -> commit -> ref manually.
+  const [{ data: nojekyllBlob }, { data: indexBlob }] = await Promise.all([
+    octokit.rest.git.createBlob({ owner, repo, content: "", encoding: "utf-8" }),
+    octokit.rest.git.createBlob({
+      owner,
+      repo,
+      content: "<!doctype html><title>Narrative Reviews</title><h1>Narrative Reviews</h1>",
+      encoding: "utf-8",
+    }),
+  ]);
+
+  const { data: tree } = await octokit.rest.git.createTree({
+    owner,
+    repo,
+    tree: [
+      { path: ".nojekyll", mode: "100644", type: "blob", sha: nojekyllBlob.sha },
+      { path: "index.html", mode: "100644", type: "blob", sha: indexBlob.sha },
+    ],
+  });
+
+  const { data: commit } = await octokit.rest.git.createCommit({
+    owner,
+    repo,
+    message: "Initialize gh-pages",
+    tree: tree.sha,
+    parents: [],
+  });
+
+  await octokit.rest.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${BRANCH}`,
+    sha: commit.sha,
+  });
+  core.info(`Created orphan ${BRANCH} branch.`);
 }
 
 async function ensurePagesEnabled(octokit: Octokit, owner: string, repo: string): Promise<void> {
