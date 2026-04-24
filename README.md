@@ -223,6 +223,16 @@ node tools/make-fixture.mjs
 open dist-static/fixture.html
 ```
 
+### Pulling a deployed review for local debugging
+
+Reproducing a rendering bug from a review that's been deployed to a repo's `gh-pages` branch (e.g. a private-repo review you can't reach via the Pages URL because of Enterprise Pages access control) is a common workflow. The helper downloads the HTML via the GitHub API and serves it locally:
+
+```bash
+./tools/pull-review.sh <owner/repo> <pr-number>
+```
+
+Requires `gh auth` with read access to the target repo's `gh-pages` branch.
+
 ### How deployment works
 
 The `dist-action/` and `dist-static/` directories are **committed to the repo**. Consumers reference the action via `uses: jorgealegre/narrative-review@main`, which runs `dist-action/index.js` directly. Changes are live the moment they merge to `main`.
