@@ -22,11 +22,11 @@ echo "Fetching blob sha for ${REPO} reviews/${PR}/index.html …"
 # Walk the dir and pick the entry that starts with `${PR}-` or matches `${PR}` exactly.
 REVIEW_PATH=$(
   gh api "repos/${REPO}/contents/reviews?ref=gh-pages" \
-    --jq --arg pr "$PR" '
-      [.[] | select(.type == "dir")
-           | select(.name == $pr or (.name | startswith($pr + "-")))]
-      | first.name // empty
-    '
+    | jq -r --arg pr "$PR" '
+        [.[] | select(.type == "dir")
+             | select(.name == $pr or (.name | startswith($pr + "-")))]
+        | (first | .name) // empty
+      '
 )
 if [[ -z "$REVIEW_PATH" ]]; then
   echo "error: no review directory found for PR ${PR} in ${REPO}@gh-pages" >&2

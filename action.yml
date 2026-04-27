@@ -33,7 +33,7 @@ inputs:
     required: false
     default: "false"
   allow-public-pages-on-private-repo:
-    description: "SECURITY: GitHub Pages sites are publicly accessible on Free/Pro/Team plans even when the source repo is private. This means your PR diffs, file contents, and review text would be served at a world-readable URL. By default, when the action detects a private repo it skips the Pages deploy and falls back to uploading the review HTML as a workflow artifact (auth-gated). Set to 'true' only if you have verified that Pages access control is configured (Enterprise Cloud) or you accept the public exposure. Ignored on public repos."
+    description: "SECURITY: GitHub Pages sites can be publicly readable on Free/Pro/Team plans even when the source repo is private — so the review (diff + file contents + analysis) would be world-readable at a stable URL. The action handles this automatically: on a private repo it probes the Pages config and proceeds with deploy when access control is on (Enterprise Cloud, `public: false`), and skips the deploy + uploads an artifact instead when Pages is publicly readable. Only set this to `true` if you want to override the safe default and deploy regardless (e.g. you accept the public exposure, or Pages isn't configured yet but you trust the org defaults). Ignored on public repos."
     required: false
     default: "false"
 outputs:

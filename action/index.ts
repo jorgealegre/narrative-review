@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import * as fs from "fs";
 import * as path from "path";
-import { fetchPRMetadata, fetchPRDiff, fetchPRComments, fetchFileContents, updatePRDescriptionWithNote } from "./github-api";
+import { fetchPRMetadata, fetchPRDiff, fetchPRComments, fetchFileContents, updatePRDescriptionWithNote, type PagesSkipReason } from "./github-api";
 import { createCheckRun, completeCheckRun } from "./check-run";
 import { deployToPages } from "./deploy";
 import { parseDiff } from "../src/lib/diff-parser";
@@ -160,8 +160,12 @@ async function run(): Promise<void> {
 
     // Layer 1: private-repo guard. GitHub Pages sites are publicly accessible
     // on Free/Pro/Team plans even when the source repo is private — the review
-    // HTML (diff + file contents + PR body) would be served at a world-
-    // readable URL. Skip the Pages deploy by default; require explicit opt-in.
+    // HTML (diff + file contents + PR body) would be served at a world-readable
+    // URL. We skip the Pages deploy unless one of the following is true:
+    //   (a) repo is public, OR
+    //   (b) the workflow opts in via `allow-public-pages-on-private-repo: true`, OR
+    //   (c) Pages is configured with Enterprise Cloud access control
+    //       (`getPages().public === false`), in which case the URL is gated.
     let repoIsPrivate = false;
     try {
       const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
@@ -169,14 +173,46 @@ async function run(): Promise<void> {
     } catch (e) {
       core.warning(`Could not determine repo visibility (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
-    const skipPagesForPrivate = repoIsPrivate && !allowPublicPagesOnPrivateRepo;
+
+    // Probe Pages config to detect Enterprise Cloud access control. `public: false`
+    // means GitHub gates the site to org/enterprise members → safe to deploy even
+    // for a private repo. If Pages isn't enabled yet, we treat it as "unknown"
+    // (auto-bootstrap on first run inherits org defaults, so we conservatively
+    // require the explicit flag for the very first deploy on a private repo).
+    let pagesIsAccessControlled = false;
+    let pagesProbeKnown = false;
+    if (repoIsPrivate) {
+      try {
+        const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
+        pagesProbeKnown = true;
+        // `public` is false when Pages access control gates the site.
+        // (Older API responses may omit the field; treat omission as "public" for safety.)
+        pagesIsAccessControlled = (pages as { public?: boolean }).public === false;
+      } catch {
+        // Pages not configured yet — leave probe as unknown.
+      }
+    }
+
+    const skipPagesForPrivate =
+      repoIsPrivate && !allowPublicPagesOnPrivateRepo && !pagesIsAccessControlled;
+
+    if (repoIsPrivate && pagesIsAccessControlled) {
+      core.info(
+        "Private repo detected, but GitHub Pages is access-controlled " +
+          "(Enterprise Cloud) — review URL will only be visible to org/enterprise " +
+          "members. Proceeding with Pages deploy."
+      );
+    }
     if (skipPagesForPrivate) {
+      const reason = pagesProbeKnown
+        ? "the Pages site is publicly accessible (no access control)"
+        : "Pages is not yet configured on this repo (cannot verify access control)";
       core.warning(
-        "Repository is private. Skipping GitHub Pages deploy because Pages sites " +
-          "are publicly accessible on Free/Pro/Team plans. The review HTML will only " +
-          "be available as a workflow artifact (auth-gated to repo collaborators). " +
-          "To opt in to Pages deploy (e.g. on Enterprise Cloud with access control), " +
-          "set 'allow-public-pages-on-private-repo: true' on the action step."
+        `Skipping GitHub Pages deploy because the repo is private and ${reason}. ` +
+          "The review HTML is uploaded as a workflow artifact instead (auth-gated to " +
+          "repo collaborators). To opt in to Pages deploy when you've verified access " +
+          "control (Enterprise Cloud) or accept public exposure, set " +
+          "'allow-public-pages-on-private-repo: true' on the action step."
       );
     }
 
@@ -207,7 +243,23 @@ async function run(): Promise<void> {
     // Update PR description with review note block
     try {
       const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-      await updatePRDescriptionWithNote(octokit, owner, repo, prNumber, headSha, chapters.length, diff.files.length, reviewUrl || undefined, reviewUrl ? undefined : artifactUrl);
+      const skipReason: PagesSkipReason | undefined = skipPagesForPrivate
+        ? pagesProbeKnown
+          ? "private-public-pages"
+          : "private-pages-unknown"
+        : undefined;
+      await updatePRDescriptionWithNote(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        headSha,
+        chapters.length,
+        diff.files.length,
+        reviewUrl || undefined,
+        reviewUrl ? undefined : artifactUrl,
+        skipReason
+      );
       core.info("Updated PR description with narrative review note.");
     } catch (e) {
       core.warning(`Failed to update PR description (non-fatal): ${e instanceof Error ? e.message : e}`);
