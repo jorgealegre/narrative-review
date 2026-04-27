@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import { InlineMarkdown } from "./InlineMarkdown";
 
 interface WalkthroughModeProps {
   review: NarrativeReview;
@@ -254,14 +255,16 @@ export function WalkthroughMode({
               )}
 
               <p className="text-lg text-t-secondary leading-relaxed max-w-2xl mb-8">
-                {review.summary}
+                <InlineMarkdown>{review.summary}</InlineMarkdown>
               </p>
 
               <div className="bg-bg-secondary/60 border border-bd-primary rounded-xl px-6 py-4 mb-8 max-w-lg w-full">
                 <h3 className="text-xs text-t-tertiary uppercase tracking-wider font-semibold mb-2">
                   Root Cause
                 </h3>
-                <p className="text-t-primary">{review.rootCause}</p>
+                <p className="text-t-primary">
+                  <InlineMarkdown>{review.rootCause}</InlineMarkdown>
+                </p>
               </div>
 
               {/* Stats row */}
@@ -353,7 +356,7 @@ export function WalkthroughMode({
                   )}
 
                   <p className="text-sm text-t-secondary leading-relaxed mt-4 mb-5">
-                    {chapter.narrative}
+                    <InlineMarkdown>{chapter.narrative}</InlineMarkdown>
                   </p>
 
                   {/* Files touched */}

@@ -2,6 +2,7 @@
 
 import { Chapter, NarrativeReview } from "@/lib/types";
 import { CheckCircle2, Circle, AlertTriangle, FileCode, BookOpen } from "lucide-react";
+import { InlineMarkdown } from "./InlineMarkdown";
 
 interface ChapterTimelineProps {
   review: NarrativeReview;
@@ -50,7 +51,7 @@ export function ChapterTimeline({
               <span className="font-medium leading-tight">Overview</span>
             </div>
             <p className="text-xs text-t-tertiary leading-relaxed mt-1 line-clamp-2">
-              {review.rootCause}
+              <InlineMarkdown>{review.rootCause}</InlineMarkdown>
             </p>
             <div className="flex items-center gap-3 mt-1.5 text-[10px] text-t-tertiary">
               <span>{review.prInfo.changedFiles} files</span>
@@ -66,7 +67,8 @@ export function ChapterTimeline({
           const reviewed = isChapterReviewed(chapter.id);
           const isUncategorized = chapter.id === "uncategorized";
           const uniqueFiles = [...new Set(chapter.hunks.map((h) => h.file))];
-          const narrativePreview = chapter.narrative.slice(0, 80);
+          // Strip backticks so truncation doesn't sever an inline-code span.
+          const narrativePreview = chapter.narrative.replace(/`/g, "").slice(0, 80);
 
           return (
             <button
