@@ -7,14 +7,22 @@ type Octokit = ReturnType<typeof github.getOctokit>;
  * Why we skipped the GitHub Pages deploy. Drives the explainer footnote in the
  * PR description so reviewers know it isn't an error and how to enable it.
  */
-export type PagesSkipReason = "private-public-pages" | "private-pages-unknown";
+export type PagesSkipReason =
+  | "private-public-pages"
+  | "private-pages-not-configured"
+  | "private-no-pages-read-permission"
+  | "private-probe-error";
 
 function skipReasonText(reason: PagesSkipReason): string {
   switch (reason) {
     case "private-public-pages":
       return "this repo is private but its GitHub Pages site is publicly readable, so the review would leak the diff and file contents.";
-    case "private-pages-unknown":
+    case "private-pages-not-configured":
       return "this repo is private and Pages isn't configured yet — we can't verify access control on the very first deploy.";
+    case "private-no-pages-read-permission":
+      return "this repo is private and the workflow lacks `pages: read` permission, so we can't verify access control. **Fix:** add `pages: read` under `permissions:` in the workflow file, or set the input below.";
+    case "private-probe-error":
+      return "this repo is private and the Pages config probe failed unexpectedly — we can't verify access control. Check the workflow run logs.";
   }
 }
 

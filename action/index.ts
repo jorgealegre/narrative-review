@@ -176,23 +176,44 @@ async function run(): Promise<void> {
 
     // Probe Pages config to detect Enterprise Cloud access control. `public: false`
     // means GitHub gates the site to org/enterprise members → safe to deploy even
-    // for a private repo. If Pages isn't enabled yet, we treat it as "unknown"
-    // (auto-bootstrap on first run inherits org defaults, so we conservatively
-    // require the explicit flag for the very first deploy on a private repo).
-    let pagesIsAccessControlled = false;
-    let pagesProbeKnown = false;
+    // for a private repo. We distinguish three failure modes so the PR-description
+    // explainer can tell the user *exactly* what to fix:
+    //   - 403: workflow's GITHUB_TOKEN lacks `pages: read` (most common — workflows
+    //     that explicitly declare a `permissions:` block silently drop pages access)
+    //   - 404: Pages not configured on the repo yet
+    //   - other: unknown (treat conservatively as probe-failed)
+    type ProbeOutcome =
+      | "access-controlled"
+      | "publicly-readable"
+      | "not-configured"
+      | "no-permission"
+      | "unknown-error";
+    let probeOutcome: ProbeOutcome = "unknown-error";
     if (repoIsPrivate) {
       try {
         const { data: pages } = await octokit.rest.repos.getPages({ owner, repo });
-        pagesProbeKnown = true;
         // `public` is false when Pages access control gates the site.
-        // (Older API responses may omit the field; treat omission as "public" for safety.)
-        pagesIsAccessControlled = (pages as { public?: boolean }).public === false;
-      } catch {
-        // Pages not configured yet — leave probe as unknown.
+        // (Older API responses may omit the field; treat omission as publicly-readable
+        // to stay on the safe side.)
+        probeOutcome = (pages as { public?: boolean }).public === false
+          ? "access-controlled"
+          : "publicly-readable";
+      } catch (e) {
+        const status = (e as { status?: number }).status;
+        if (status === 404) {
+          probeOutcome = "not-configured";
+        } else if (status === 403) {
+          probeOutcome = "no-permission";
+        } else {
+          probeOutcome = "unknown-error";
+          core.warning(
+            `Could not probe Pages config (non-fatal): ${e instanceof Error ? e.message : e}`
+          );
+        }
       }
     }
 
+    const pagesIsAccessControlled = probeOutcome === "access-controlled";
     const skipPagesForPrivate =
       repoIsPrivate && !allowPublicPagesOnPrivateRepo && !pagesIsAccessControlled;
 
@@ -204,9 +225,22 @@ async function run(): Promise<void> {
       );
     }
     if (skipPagesForPrivate) {
-      const reason = pagesProbeKnown
-        ? "the Pages site is publicly accessible (no access control)"
-        : "Pages is not yet configured on this repo (cannot verify access control)";
+      let reason: string;
+      switch (probeOutcome) {
+        case "publicly-readable":
+          reason = "the Pages site is publicly accessible (no access control)";
+          break;
+        case "not-configured":
+          reason = "Pages is not yet configured on this repo (cannot verify access control)";
+          break;
+        case "no-permission":
+          reason =
+            "the workflow's GITHUB_TOKEN lacks the `pages: read` permission required to verify access control. Add `pages: read` under `permissions:` in your workflow";
+          break;
+        case "unknown-error":
+        default:
+          reason = "the Pages config probe failed (cannot verify access control)";
+      }
       core.warning(
         `Skipping GitHub Pages deploy because the repo is private and ${reason}. ` +
           "The review HTML is uploaded as a workflow artifact instead (auth-gated to " +
@@ -243,11 +277,24 @@ async function run(): Promise<void> {
     // Update PR description with review note block
     try {
       const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-      const skipReason: PagesSkipReason | undefined = skipPagesForPrivate
-        ? pagesProbeKnown
-          ? "private-public-pages"
-          : "private-pages-unknown"
-        : undefined;
+      let skipReason: PagesSkipReason | undefined;
+      if (skipPagesForPrivate) {
+        switch (probeOutcome) {
+          case "publicly-readable":
+            skipReason = "private-public-pages";
+            break;
+          case "not-configured":
+            skipReason = "private-pages-not-configured";
+            break;
+          case "no-permission":
+            skipReason = "private-no-pages-read-permission";
+            break;
+          case "unknown-error":
+          case "access-controlled": // unreachable but keeps switch exhaustive
+          default:
+            skipReason = "private-probe-error";
+        }
+      }
       await updatePRDescriptionWithNote(
         octokit,
         owner,
