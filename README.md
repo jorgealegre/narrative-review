@@ -39,13 +39,13 @@ Narrative Review fixes this. It feeds your entire diff to Claude, which identifi
 >
 > GitHub Pages sites are **publicly accessible on Free / Pro / Team plans even when the source repository is private.** If this action deployed your review HTML to Pages, your PR diffs, changed file contents, and review text would be served at a world-readable URL.
 >
-> **Default behavior (safe):** When the action detects a private repo, it skips the Pages deploy and uploads the review as a workflow artifact (downloadable only by users with repo access).
+> **What the action does automatically:**
+> - **Public repo** → deploys to Pages as expected.
+> - **Private repo + GitHub Enterprise Cloud Pages access control** (`public: false`) → action probes `getPages()`, sees the URL is gated to org members, deploys.
+> - **Private repo + publicly-readable Pages** → action skips the deploy and uploads the review as a workflow artifact (downloadable only by users with repo access). The fallback PR-description footnote tells you exactly why.
+> - **Private repo + Pages not configured yet** → same skip behavior; once you enable Pages with access control the next run picks it up.
 >
-> **Opt-in (only if safe on your plan):** Set `allow-public-pages-on-private-repo: true` on the action step. Do this only if:
-> - Your repo is on GitHub Enterprise Cloud with Pages access control configured, OR
-> - The content really is OK to be public
->
-> Public repos: not affected — Pages deploy runs as normal.
+> **Override:** Set `allow-public-pages-on-private-repo: true` on the action step to bypass the probe and deploy regardless. Use only if you've manually verified access control or accept public exposure.
 
 > **Using Claude Code?** Skip the manual steps. Run this once from any repo you want to install the action in:
 >
@@ -66,10 +66,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
-  checks: write      # post a GitHub check run with review summary
-  contents: write    # create/update the gh-pages branch
-  pages: write       # read Pages config to resolve the review URL
-  pull-requests: write  # add the review link to the PR description
+  checks: write         # post a GitHub check run with the review summary
+  contents: write       # create/update the gh-pages branch holding the rendered review
+  pages: write          # auto-bootstrap Pages on first run + probe access control before deploying
+  pull-requests: write  # update the PR description with the review link
 
 jobs:
   review:
@@ -96,6 +96,9 @@ jobs:
           overwrite: true
 ```
 
+> [!IMPORTANT]
+> Once any workflow declares a `permissions:` block, every permission *not* listed silently defaults to **none** — including ones the action needs. Copy the four lines above verbatim. If you also have `pages: read` set in a higher-scope `permissions:` elsewhere, make sure the workflow-level block keeps `pages: write` so the action can both probe access control and bootstrap Pages on the first run.
+
 ### 2. Add the Anthropic API key
 
 Via UI: **Settings → Secrets and variables → Actions → New repository secret** → name `ANTHROPIC_API_KEY`.
@@ -109,15 +112,17 @@ gh secret set ANTHROPIC_API_KEY -R <owner>/<repo>
 
 Get a key at [console.anthropic.com](https://console.anthropic.com). New accounts get $5 free credit.
 
-### 3. Enable GitHub Pages (one click, first time only)
+### 3. Enable GitHub Pages
 
-On the first PR the action automatically creates a `gh-pages` branch and seeds it with `.nojekyll` + a placeholder `index.html`. Because the GitHub-provided `GITHUB_TOKEN` lacks admin scope, you'll also need to flip Pages on once:
+On the first PR the action automatically creates a `gh-pages` branch (seeded with `.nojekyll` + a placeholder `index.html`) and tries to enable Pages via the API. If your `GITHUB_TOKEN` has the `pages: write` permission shown in step 1, no further action is needed — reviews start rendering on the next run.
+
+If the auto-enable fails (older Pages app config, scoped tokens, etc.), the action logs a warning and you can flip Pages on once via UI:
 
 **Settings → Pages → Source → "Deploy from a branch" → `gh-pages` / `/ (root)` → Save**
 
-From the next PR onward everything is automatic — reviews are served at `https://<owner>.github.io/<repo>/reviews/<pr-number>-<random-slug>/` and the URL is posted back to the PR description. The random slug (128 bits of entropy) makes review URLs unguessable; only people who see the PR description or check run will have the link. `robots.txt` on the site blocks search-engine indexing.
+Reviews are then served at `https://<owner>.github.io/<repo>/reviews/<pr-number>-<random-slug>/` and the URL is posted to the PR description. The random slug (128 bits of entropy) makes URLs unguessable; only people who see the PR description or check run will have the link. `robots.txt` on the site blocks search-engine indexing.
 
-If you skip this step, the action falls back to uploading the review HTML as a workflow artifact (downloadable from the Actions tab of the run).
+If Pages can't be enabled at all (or your repo is private without access control), the action falls back to uploading the review HTML as a workflow artifact (downloadable from the Actions tab of the run). The PR description footnote will explain exactly why.
 
 ---
 
