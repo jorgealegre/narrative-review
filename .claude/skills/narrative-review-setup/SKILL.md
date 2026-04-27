@@ -38,21 +38,22 @@ Proceed normally. Reviews will be served at `https://<owner>.github.io/<repo>/re
 
 > Private repos on GitHub Free, Pro, and Team plans cannot host *private* GitHub Pages sites — if Pages is enabled, the site is public to the internet even though the repo stays private. Your PR diffs, file contents, and review text would be at a world-readable (though unguessable) URL.
 >
-> By default this action detects a private repo and **skips the Pages deploy**. The review is uploaded as a workflow artifact, downloadable only by people with repo access. This is the safe path.
+> The action handles this automatically:
+> - If your repo is on **GitHub Enterprise Cloud with Pages access control** (`getPages().public === false`), it detects the gate and deploys normally — the URL is restricted to org/enterprise members.
+> - If your repo is **private + free/pro/team plan** (no access control), it skips the Pages deploy and uploads the review as a workflow artifact instead. Downloadable only by people with repo access.
 >
-> You can opt in to Pages deploy by setting `allow-public-pages-on-private-repo: true` on the action step, but only do this if:
-> 1. You're on GitHub Enterprise Cloud and have configured Pages access control, OR
-> 2. You're aware the content will be publicly reachable at its URL
+> The auto-detect needs `pages: read` (or `pages: write`) in the workflow's `permissions:` block. The standard workflow below already includes `pages: write`, which covers both detection and the first-run Pages bootstrap.
 
-Ask the user which path they want:
+Ask the user which path applies:
 
-| Path | Workflow setup |
+| Plan / setup | Workflow setup |
 |------|----------------|
-| **Artifact only (default, safe)** | Use the standard workflow; do NOT add `allow-public-pages-on-private-repo` |
-| **Pages deploy (opt in, accept public exposure)** | Add `allow-public-pages-on-private-repo: 'true'` to the `with:` block |
+| **GitHub Enterprise Cloud + Pages access control** | Standard workflow as written. Action auto-detects and deploys. |
+| **Private repo, free/pro/team (no access control)** | Standard workflow as written. Action falls back to artifact upload automatically. |
+| **Override** (e.g. content really is fine to be public) | Add `allow-public-pages-on-private-repo: 'true'` to the `with:` block |
 | **Skip install entirely** | If the user has any doubt, this is the right call |
 
-Never default a private-repo user to the Pages-deploy path without explicit confirmation.
+Never default a private-repo user to the override path without explicit confirmation.
 
 ## Step 1 — Create the workflow file
 
@@ -65,10 +66,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
-  checks: write
-  contents: write
-  pages: write
-  pull-requests: write
+  checks: write         # post a check run with the review summary
+  contents: write       # push the rendered review to gh-pages
+  pages: write          # bootstrap Pages on first run + probe access control before deploying
+  pull-requests: write  # update the PR description with the review link
+# IMPORTANT: once any workflow declares `permissions:`, every permission *not* listed
+# silently defaults to `none`. Copy these four lines verbatim — losing `pages` makes the
+# action fall back to artifact-upload mode, which surfaces as a "Download the review"
+# link instead of "View Narrative Review →" on the PR.
 
 jobs:
   review:
