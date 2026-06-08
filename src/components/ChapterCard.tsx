@@ -1,6 +1,6 @@
 "use client";
 
-import { Chapter, DiffSettings } from "@/lib/types";
+import { Chapter, DiffSettings, PRComment } from "@/lib/types";
 import { DiffView } from "./DiffView";
 import {
   CheckCircle2,
@@ -28,6 +28,7 @@ interface ChapterCardProps {
   onActivate: () => void;
   prUrl?: string;
   diffSettings?: DiffSettings;
+  comments?: PRComment[];
   note?: string;
   onNoteChange?: (note: string) => void;
   defaultExpanded?: boolean;
@@ -43,6 +44,7 @@ export function ChapterCard({
   onActivate,
   prUrl,
   diffSettings,
+  comments,
   note,
   onNoteChange,
   defaultExpanded = true,
@@ -224,6 +226,7 @@ export function ChapterCard({
                       prUrl ? `${prUrl}/files#diff-${encodeURIComponent(hunk.file)}` : undefined
                     }
                     settings={diffSettings}
+                    comments={comments?.filter((comment) => comment.path === hunk.file)}
                     fileContent={fileContents?.[hunk.file]}
                   />
                 ))}

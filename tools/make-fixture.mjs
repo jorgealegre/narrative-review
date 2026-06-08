@@ -83,7 +83,28 @@ const fixture = {
     },
     analyzedAt: new Date().toISOString(),
   },
-  comments: [],
+  comments: [
+    {
+      id: 1,
+      author: "alice",
+      body: "This should appear under the added JWT import.",
+      path: "src/api/router.ts",
+      line: 6,
+      side: "RIGHT",
+      createdAt: "2026-06-07T12:00:00Z",
+      htmlUrl: "#",
+    },
+    {
+      id: 2,
+      author: "bob",
+      body: "This should appear on the deleted middleware body.",
+      path: "src/api/legacy-auth.ts",
+      line: 4,
+      side: "LEFT",
+      createdAt: "2026-06-07T12:05:00Z",
+      htmlUrl: "#",
+    },
+  ],
 };
 
 const templatePath = resolve(repoRoot, "dist-static/index.html");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
+import { NarrativeReview, DiffSettings, DiffViewMode, PRComment } from "@/lib/types";
 import { useReviewState } from "@/hooks/useReviewState";
 import { useFancyMode } from "@/hooks/useFancyMode";
 import { ChapterCard } from "./ChapterCard";
@@ -27,10 +27,11 @@ import {
 
 interface ReviewContainerProps {
   review: NarrativeReview;
+  comments?: PRComment[];
   fileContents?: Record<string, string>;
 }
 
-export function ReviewContainer({ review, fileContents }: ReviewContainerProps) {
+export function ReviewContainer({ review, comments, fileContents }: ReviewContainerProps) {
   const { fancy } = useFancyMode();
   const prId = `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
   const prUrl = `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
@@ -372,6 +373,7 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
                 onActivate={() => setActiveChapterId(chapter.id)}
                 prUrl={prUrl}
                 diffSettings={diffSettings}
+                comments={comments}
                 note={reviewState.notes[chapter.id] || ""}
                 onNoteChange={(n) => setNote(chapter.id, n)}
                 defaultExpanded={allExpanded}
@@ -401,6 +403,7 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
           onToggleReview={toggleChapter}
           onExit={() => setWalkthroughMode(false)}
           startChapterId={activeChapterId || undefined}
+          comments={comments}
           fileContents={fileContents}
         />
       )}
