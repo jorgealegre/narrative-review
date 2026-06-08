@@ -1,0 +1,38 @@
+name: Narrative Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  checks: write         # post a check run with the review summary
+  contents: write       # push the rendered review to gh-pages
+  pages: write          # bootstrap Pages on first run + probe access control before deploying
+  pull-requests: write  # update the PR description with the review link
+# IMPORTANT: once any workflow declares `permissions:`, every permission *not* listed
+# silently defaults to `none`. Copy these four lines verbatim — losing `pages` makes the
+# action fall back to artifact-upload mode, which surfaces as a "Download the review"
+# link instead of "View Narrative Review →" on the PR.
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'run-narrative-review') ||
+      (
+        !github.event.pull_request.draft &&
+        !contains(github.event.pull_request.labels.*.name, 'wip')
+      )
+    steps:
+      - uses: jorgealegre/narrative-review@v1
+        id: narrative
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload review artifact
+        if: success() && steps.narrative.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: narrative-review-${{ github.event.pull_request.number }}
+          path: _narrative-review-output/index.html
+          retention-days: 90
+          overwrite: true
