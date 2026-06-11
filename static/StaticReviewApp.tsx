@@ -12,7 +12,11 @@ export function StaticReviewApp({ data }: StaticReviewAppProps) {
   return (
     <ThemeProvider>
       <FancyModeProvider>
-        <ReviewContainer review={data.review} fileContents={data.fileContents} />
+        <ReviewContainer
+          review={data.review}
+          comments={data.comments}
+          fileContents={data.fileContents}
+        />
         <FancyModeToggle />
       </FancyModeProvider>
     </ThemeProvider>

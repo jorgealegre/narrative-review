@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
+import { NarrativeReview, DiffSettings, DiffViewMode, PRComment } from "@/lib/types";
 import { DiffView } from "./DiffView";
 import {
   ChevronLeft,
@@ -29,6 +29,7 @@ interface WalkthroughModeProps {
   onToggleReview: (id: string) => void;
   onExit: () => void;
   startChapterId?: string;
+  comments?: PRComment[];
   fileContents?: Record<string, string>;
 }
 
@@ -38,6 +39,7 @@ export function WalkthroughMode({
   onToggleReview,
   onExit,
   startChapterId,
+  comments,
   fileContents,
 }: WalkthroughModeProps) {
   // -1 = intro slide, 0..n = chapter slides
@@ -404,6 +406,7 @@ export function WalkthroughMode({
                       fileName={hunk.file}
                       annotation={hunk.annotation}
                       settings={diffSettings}
+                      comments={comments?.filter((comment) => comment.path === hunk.file)}
                       fileContent={fileContents?.[hunk.file]}
                     />
                   </div>

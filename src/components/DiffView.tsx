@@ -210,6 +210,30 @@ function InlineComment({ comment }: { comment: PRComment }) {
   );
 }
 
+function getCommentsForSide(
+  comments: PRComment[] | undefined,
+  side: PRComment["side"],
+  line: number | null
+): PRComment[] {
+  if (!comments?.length) return [];
+  if (line === null) return [];
+
+  return comments.filter(
+    (comment) => comment.side === side && comment.line === line
+  );
+}
+
+function getCommentsForRenderedLine(
+  comments: PRComment[] | undefined,
+  oldLine: number | null,
+  newLine: number | null
+): PRComment[] {
+  return [
+    ...getCommentsForSide(comments, "LEFT", oldLine),
+    ...getCommentsForSide(comments, "RIGHT", newLine),
+  ];
+}
+
 // ── Unified / Compact view ──────────────────────────────────────────────
 
 function UnifiedDiffLines({
@@ -311,9 +335,11 @@ function UnifiedDiffLines({
     const type = classifyLine(line);
     const isDemoted = wsAnalysis.demoted.has(lineIdx);
     const nums = lineNumbers[lineIdx];
-    const newLineNum = nums.new;
     const matchedRemoveIdx = isDemoted ? wsAnalysis.addToRemove.get(lineIdx) : undefined;
-    const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old : null;
+    const demotedOldNum = matchedRemoveIdx !== undefined ? lineNumbers[matchedRemoveIdx]?.old ?? null : null;
+    const oldLineNum = isDemoted ? demotedOldNum : nums.old;
+    const newLineNum = nums.new;
+    const lineComments = getCommentsForRenderedLine(prComments, oldLineNum, newLineNum);
 
     let bg = "";
     let textColor = "text-t-tertiary";
@@ -341,10 +367,7 @@ function UnifiedDiffLines({
             <span className="flex-1">{displayLine?.slice(1) || " "}</span>
           )}
         </div>
-        {prComments && newLineNum !== null && prComments
-          .filter((c) => c.line === newLineNum)
-          .map((c) => <InlineComment key={c.id} comment={c} />)
-        }
+        {lineComments.map((c) => <InlineComment key={c.id} comment={c} />)}
       </div>
     );
   }, [lines, wsAnalysis, lineNumbers, language, prComments]);
@@ -471,10 +494,12 @@ function SplitDiffView({
   lines,
   settings,
   language,
+  comments,
 }: {
   lines: string[];
   settings: DiffSettings;
   language: string;
+  comments?: PRComment[];
 }) {
   const wsInfo = useMemo(
     () => settings.hideWhitespace
@@ -485,71 +510,80 @@ function SplitDiffView({
   const pairs = useMemo(() => buildSplitPairs(lines, wsInfo), [lines, wsInfo]);
 
   return (
-    <div className="grid grid-cols-2 divide-x divide-bd-primary">
-      {/* Left (old) */}
-      <div>
-        {pairs.map((pair, i) => {
-          if (pair.type === "header") {
-            return (
-              <div key={i} className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate">
+    <div>
+      {pairs.map((pair, i) => {
+        if (pair.type === "header") {
+          return (
+            <div key={i} className="grid grid-cols-2 divide-x divide-bd-primary">
+              <div
+                className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate"
+                data-testid="split-old-cell"
+              >
                 {pair.oldLine}
               </div>
-            );
-          }
-          const hasOld = pair.oldLine !== null;
-          const isRemove = hasOld && classifyLine(pair.oldLine!) === "remove";
-          const oldContent = hasOld ? (pair.oldLine!.slice(1)) : "";
-          const oldHighlighted = hasOld ? highlightCode(oldContent, language) : null;
-          return (
-            <div
-              key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
-                isRemove ? "bg-diff-remove-bg" : hasOld ? "" : "bg-bg-secondary/30"
-              }`}
-            >
-              <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
-                {pair.oldNum ?? ""}
-              </span>
-              <span className="select-none flex-shrink-0 w-4">{hasOld ? (pair.oldLine?.[0] ?? " ") : ""}</span>
-              <span className="flex-1 truncate px-2">
-                {hasOld ? (oldHighlighted ? <span dangerouslySetInnerHTML={{ __html: oldHighlighted }} /> : pair.oldLine?.slice(1) || " ") : ""}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {/* Right (new) */}
-      <div>
-        {pairs.map((pair, i) => {
-          if (pair.type === "header") {
-            return (
-              <div key={i} className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate">
+              <div
+                className="bg-diff-header-bg text-diff-header-text font-mono text-xs px-3 py-1 truncate"
+                data-testid="split-new-cell"
+              >
                 {pair.newLine}
               </div>
-            );
-          }
-          const hasNew = pair.newLine !== null;
-          const isAdd = hasNew && classifyLine(pair.newLine!) === "add";
-          const newContent = hasNew ? (pair.newLine!.slice(1)) : "";
-          const newHighlighted = hasNew ? highlightCode(newContent, language) : null;
-          return (
-            <div
-              key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
-                isAdd ? "bg-diff-add-bg" : hasNew ? "" : "bg-bg-secondary/30"
-              }`}
-            >
-              <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
-                {pair.newNum ?? ""}
-              </span>
-              <span className="select-none flex-shrink-0 w-4">{hasNew ? (pair.newLine?.[0] ?? " ") : ""}</span>
-              <span className="flex-1 truncate px-2">
-                {hasNew ? (newHighlighted ? <span dangerouslySetInnerHTML={{ __html: newHighlighted }} /> : pair.newLine?.slice(1) || " ") : ""}
-              </span>
             </div>
           );
-        })}
-      </div>
+        }
+
+        const hasOld = pair.oldLine !== null;
+        const isRemove = hasOld && classifyLine(pair.oldLine!) === "remove";
+        const oldContent = hasOld ? pair.oldLine!.slice(1) : "";
+        const oldHighlighted = hasOld ? highlightCode(oldContent, language) : null;
+        const oldComments = getCommentsForSide(comments, "LEFT", pair.oldNum);
+
+        const hasNew = pair.newLine !== null;
+        const isAdd = hasNew && classifyLine(pair.newLine!) === "add";
+        const newContent = hasNew ? pair.newLine!.slice(1) : "";
+        const newHighlighted = hasNew ? highlightCode(newContent, language) : null;
+        const newComments = getCommentsForSide(comments, "RIGHT", pair.newNum);
+
+        return (
+          <div key={i} className="grid grid-cols-2 divide-x divide-bd-primary">
+            <div data-testid="split-old-cell">
+              <div
+                className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
+                  isRemove ? "bg-diff-remove-bg" : hasOld ? "" : "bg-bg-secondary/30"
+                }`}
+              >
+                <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
+                  {pair.oldNum ?? ""}
+                </span>
+                <span className="select-none flex-shrink-0 w-4">{hasOld ? (pair.oldLine?.[0] ?? " ") : ""}</span>
+                <span className="flex-1 truncate px-2">
+                  {hasOld ? (oldHighlighted ? <span dangerouslySetInnerHTML={{ __html: oldHighlighted }} /> : pair.oldLine?.slice(1) || " ") : ""}
+                </span>
+              </div>
+              {oldComments.map((comment) => (
+                <InlineComment key={comment.id} comment={comment} />
+              ))}
+            </div>
+            <div data-testid="split-new-cell">
+              <div
+                className={`font-mono flex items-center min-h-[1.5rem] text-sm text-t-secondary ${
+                  isAdd ? "bg-diff-add-bg" : hasNew ? "" : "bg-bg-secondary/30"
+                }`}
+              >
+                <span className="w-8 text-right mr-3 text-bd-primary text-xs select-none flex-shrink-0 px-1">
+                  {pair.newNum ?? ""}
+                </span>
+                <span className="select-none flex-shrink-0 w-4">{hasNew ? (pair.newLine?.[0] ?? " ") : ""}</span>
+                <span className="flex-1 truncate px-2">
+                  {hasNew ? (newHighlighted ? <span dangerouslySetInnerHTML={{ __html: newHighlighted }} /> : pair.newLine?.slice(1) || " ") : ""}
+                </span>
+              </div>
+              {newComments.map((comment) => (
+                <InlineComment key={comment.id} comment={comment} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -749,7 +783,12 @@ export function DiffView({
         )}
 
         {settings.viewMode === "split" ? (
-          <SplitDiffView lines={lines} settings={settings} language={language} />
+          <SplitDiffView
+            lines={lines}
+            settings={settings}
+            language={language}
+            comments={comments}
+          />
         ) : (
           <pre className="text-sm leading-6">
             <UnifiedDiffLines
