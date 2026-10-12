@@ -8,12 +8,19 @@ import { deployToPages } from "./deploy";
 import { parseDiff } from "../src/lib/diff-parser";
 import { analyzeNarrative } from "../src/lib/analyzer";
 import { verifyCoverage, buildUncategorizedChapter } from "../src/lib/coverage-verifier";
-import type { ModelId, NarrativeReview, StaticReviewData } from "../src/lib/types";
+import { estimateCost, resolveModel } from "../src/lib/models";
+import type { NarrativeReview, StaticReviewData } from "../src/lib/types";
 
 async function run(): Promise<void> {
   const anthropicApiKey = core.getInput("anthropic-api-key", { required: true });
   const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN || "";
-  const model = (core.getInput("model") || "claude-sonnet-4-6") as ModelId;
+  let model;
+  try {
+    model = resolveModel(core.getInput("model"));
+  } catch (e) {
+    core.setFailed(e instanceof Error ? e.message : String(e));
+    return;
+  }
   const maxDiffSize = parseInt(core.getInput("max-diff-size") || "512000", 10);
   const maxLines = parseInt(core.getInput("max-lines") || "5000", 10);
   const maxCost = parseFloat(core.getInput("max-cost") || "2.00");
@@ -72,22 +79,7 @@ async function run(): Promise<void> {
       }
 
       // Estimate cost before calling Claude
-      const MODEL_INPUT_COST: Record<string, number> = {
-        "claude-haiku-4-5-20251001": 1.0,
-        "claude-sonnet-4-6": 3.0,
-        "claude-opus-4-6": 5.0,
-      };
-      const MODEL_OUTPUT_COST: Record<string, number> = {
-        "claude-haiku-4-5-20251001": 5.0,
-        "claude-sonnet-4-6": 15.0,
-        "claude-opus-4-6": 25.0,
-      };
-      const estInputTokens = Math.ceil(diffBytes / 4) + 3000; // diff + system prompt
-      const estOutputTokens = 4000; // typical narrative output
-      const estCost =
-        (estInputTokens * (MODEL_INPUT_COST[model] || 3.0) +
-          estOutputTokens * (MODEL_OUTPUT_COST[model] || 15.0)) /
-        1_000_000;
+      const estCost = estimateCost(model, diffBytes);
       if (estCost > maxCost) {
         await completeCheckRun(octokit, owner, repo, checkRunId, {
           conclusion: "neutral",

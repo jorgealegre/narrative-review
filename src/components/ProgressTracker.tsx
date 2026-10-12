@@ -1,15 +1,11 @@
 "use client";
 
 import { CoverageResult, AnalysisMetrics } from "@/lib/types";
+import { MODELS } from "@/lib/models";
 import { ShieldCheck, AlertTriangle, Coins, BookOpen } from "lucide-react";
 import { useFancyMode } from "@/hooks/useFancyMode";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const MODEL_LABELS: Record<string, string> = {
-  "claude-haiku-4-5-20251001": "Haiku 4.5",
-  "claude-sonnet-4-6": "Sonnet 4.6",
-  "claude-opus-4-6": "Opus 4.6",
-};
 
 interface ProgressTrackerProps {
   reviewedCount: number;
@@ -63,7 +59,7 @@ export function ProgressTracker({
               <div className="flex items-center gap-1.5" title={`${metrics.inputTokens.toLocaleString()} input + ${metrics.outputTokens.toLocaleString()} output tokens · ${(metrics.durationMs / 1000).toFixed(1)}s`}>
                 <Coins className="w-3.5 h-3.5 text-t-tertiary" />
                 <span className="text-xs font-mono text-t-tertiary">
-                  {MODEL_LABELS[metrics.model] || "Claude"} · ${metrics.cost.toFixed(3)}
+                  {MODELS[metrics.model]?.label || "Claude"} · ${metrics.cost.toFixed(3)}
                 </span>
               </div>
             )}

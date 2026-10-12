@@ -13,7 +13,7 @@
  * doesn't burn Claude tokens. Pass --fresh to force a new API call.
  *
  * Env: ANTHROPIC_API_KEY required when calling fresh.
- *      MODEL (default: claude-sonnet-4-6)
+ *      MODEL (default: claude-sonnet-5-5)
  */
 
 import * as fs from "fs";
@@ -24,7 +24,8 @@ import {
   verifyCoverage,
   buildUncategorizedChapter,
 } from "../src/lib/coverage-verifier";
-import type { ModelId, NarrativeReview, PRInfo } from "../src/lib/types";
+import { resolveModel } from "../src/lib/models";
+import type { NarrativeReview, PRInfo } from "../src/lib/types";
 
 const args = process.argv.slice(2);
 const name = args.find((a) => !a.startsWith("--"));
@@ -78,7 +79,7 @@ if (!fresh && fs.existsSync(cachePath)) {
     console.error("Set ANTHROPIC_API_KEY to call the analyzer fresh.");
     process.exit(1);
   }
-  const model = (process.env.MODEL || "claude-sonnet-4-6") as ModelId;
+  const model = resolveModel(process.env.MODEL);
   console.log(`Calling Claude (${model})...`);
   analysis = await analyzeNarrative(diff, prInfo.title, prInfo.body, { model });
   fs.writeFileSync(cachePath, JSON.stringify(analysis, null, 2));
