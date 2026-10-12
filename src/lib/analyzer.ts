@@ -1,18 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonSchemaOutputFormat } from "@anthropic-ai/sdk/helpers/json-schema";
 import { ParsedDiff, Chapter, ChapterHunk, ModelId, AnalysisMetrics } from "./types";
+import { DEFAULT_MODEL, costOf } from "./models";
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) _client = new Anthropic();
   return _client;
 }
-
-const MODEL_PRICING: Record<ModelId, { input: number; output: number }> = {
-  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
-  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
-  "claude-opus-4-6": { input: 5.0, output: 25.0 },
-};
 
 function buildFileManifest(diff: ParsedDiff): string {
   return diff.files
@@ -140,7 +135,7 @@ export async function analyzeNarrative(
   chapters: Chapter[];
   metrics: AnalysisMetrics;
 }> {
-  const model = options.model || "claude-sonnet-4-6";
+  const model = options.model || DEFAULT_MODEL;
   const manifest = buildFileManifest(diff);
   const hunks = buildHunkReference(diff);
 
@@ -197,11 +192,9 @@ Analyze this diff and return the narrative JSON.`;
     }
   }
 
-  const pricing = MODEL_PRICING[model];
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
-  const cost =
-    (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  const cost = costOf(model, inputTokens, outputTokens);
 
   const chapters: Chapter[] = parsed.chapters.map(
     (ch: {

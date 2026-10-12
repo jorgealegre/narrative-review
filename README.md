@@ -132,7 +132,7 @@ If Pages can't be enabled at all (or your repo is private without access control
 |-------|---------|-------------|
 | `anthropic-api-key` | *required* | Anthropic API key |
 | `github-token` | `${{ github.token }}` | GitHub token (auto-provided) |
-| `model` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6` |
+| `model` | `claude-sonnet-5-5` | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`; the older `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6` still work. An unknown id fails the run. |
 | `max-diff-size` | `512000` | Max diff size in bytes before skipping |
 | `max-lines` | `5000` | Max total lines changed before skipping |
 | `max-cost` | `2.00` | Max estimated cost (USD) before skipping |
@@ -155,9 +155,9 @@ The action skips automatically when the PR is a draft, labeled `wip`, larger tha
 
 | Model | Rough cost per review |
 |-------|-----------------------|
-| `claude-haiku-4-5-20251001` | ~$0.01 |
-| `claude-sonnet-4-6` | ~$0.10 |
-| `claude-opus-4-6` | ~$0.50 |
+| `claude-haiku-5-5` | under $0.01 |
+| `claude-sonnet-5-5` | ~$0.10 |
+| `claude-opus-5-5` | ~$0.20 |
 
 ---
 
@@ -179,7 +179,7 @@ Normal. `review` is GitHub's auto-generated status for the workflow job; `Narrat
 Check the action log for the skip reason. Guards: draft PR, `wip` label, > 5000 lines, estimated cost > $2. Force with the `run-narrative-review` label or set `force: true` in the step inputs.
 
 **Rate limit / 429 from Claude**
-Raise the `max-cost` input or switch to `claude-haiku-4-5-20251001` for cheaper runs. Prompt caching amortizes the system prompt across runs within a 5-minute window.
+Raise the `max-cost` input or switch to `claude-haiku-5-5` for cheaper runs. Prompt caching amortizes the system prompt across runs within a 5-minute window.
 
 ---
 

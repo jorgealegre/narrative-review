@@ -13,9 +13,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   model:
-    description: "Claude model to use (claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-6)"
+    description: "Claude model to use (claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5; claude-haiku-4-5-20251001, claude-sonnet-4-6 and claude-opus-4-6 still work)"
     required: false
-    default: "claude-sonnet-4-6"
+    default: "claude-sonnet-5-5"
   max-diff-size:
     description: "Maximum diff size in bytes before skipping analysis"
     required: false

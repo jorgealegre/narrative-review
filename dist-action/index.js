@@ -30376,10 +30376,18 @@ const deploy_1 = __nccwpck_require__(4826);
 const diff_parser_1 = __nccwpck_require__(4874);
 const analyzer_1 = __nccwpck_require__(2761);
 const coverage_verifier_1 = __nccwpck_require__(7196);
+const models_1 = __nccwpck_require__(9197);
 async function run() {
     const anthropicApiKey = core.getInput("anthropic-api-key", { required: true });
     const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN || "";
-    const model = (core.getInput("model") || "claude-sonnet-4-6");
+    let model;
+    try {
+        model = (0, models_1.resolveModel)(core.getInput("model"));
+    }
+    catch (e) {
+        core.setFailed(e instanceof Error ? e.message : String(e));
+        return;
+    }
     const maxDiffSize = parseInt(core.getInput("max-diff-size") || "512000", 10);
     const maxLines = parseInt(core.getInput("max-lines") || "5000", 10);
     const maxCost = parseFloat(core.getInput("max-cost") || "2.00");
@@ -30429,21 +30437,7 @@ async function run() {
                 return;
             }
             // Estimate cost before calling Claude
-            const MODEL_INPUT_COST = {
-                "claude-haiku-4-5-20251001": 1.0,
-                "claude-sonnet-4-6": 3.0,
-                "claude-opus-4-6": 5.0,
-            };
-            const MODEL_OUTPUT_COST = {
-                "claude-haiku-4-5-20251001": 5.0,
-                "claude-sonnet-4-6": 15.0,
-                "claude-opus-4-6": 25.0,
-            };
-            const estInputTokens = Math.ceil(diffBytes / 4) + 3000; // diff + system prompt
-            const estOutputTokens = 4000; // typical narrative output
-            const estCost = (estInputTokens * (MODEL_INPUT_COST[model] || 3.0) +
-                estOutputTokens * (MODEL_OUTPUT_COST[model] || 15.0)) /
-                1_000_000;
+            const estCost = (0, models_1.estimateCost)(model, diffBytes);
             if (estCost > maxCost) {
                 await (0, check_run_1.completeCheckRun)(octokit, owner, repo, checkRunId, {
                     conclusion: "neutral",
@@ -30665,17 +30659,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.analyzeNarrative = analyzeNarrative;
 const sdk_1 = __importDefault(__nccwpck_require__(121));
 const json_schema_1 = __nccwpck_require__(7857);
+const models_1 = __nccwpck_require__(9197);
 let _client = null;
 function getClient() {
     if (!_client)
         _client = new sdk_1.default();
     return _client;
 }
-const MODEL_PRICING = {
-    "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
-    "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
-    "claude-opus-4-6": { input: 5.0, output: 25.0 },
-};
 function buildFileManifest(diff) {
     return diff.files
         .map((f) => `- ${f.path} [${f.status}] (+${f.additions}/-${f.deletions}, ${f.hunks.length} hunks)`)
@@ -30780,7 +30770,7 @@ const narrativeOutputSchema = {
     required: ["title", "summary", "rootCause", "chapters"],
 };
 async function analyzeNarrative(diff, prTitle, prBody, options = {}) {
-    const model = options.model || "claude-sonnet-4-6";
+    const model = options.model || models_1.DEFAULT_MODEL;
     const manifest = buildFileManifest(diff);
     const hunks = buildHunkReference(diff);
     const userPrompt = `## Pull Request
@@ -30831,10 +30821,9 @@ Analyze this diff and return the narrative JSON.`;
             parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
         }
     }
-    const pricing = MODEL_PRICING[model];
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
-    const cost = (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+    const cost = (0, models_1.costOf)(model, inputTokens, outputTokens);
     const chapters = parsed.chapters.map((ch) => ({
         id: ch.id,
         title: ch.title,
@@ -31049,6 +31038,62 @@ function reconstructDiffForHunk(file, hunkIndex) {
     const fromFile = `--- a/${file.oldPath || file.path}`;
     const toFile = `+++ b/${file.path}`;
     return [header, fromFile, toFile, hunk.rawContent].join("\n");
+}
+
+
+/***/ }),
+
+/***/ 9197:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DEFAULT_MODEL = exports.MODELS = void 0;
+exports.isModelId = isModelId;
+exports.resolveModel = resolveModel;
+exports.costOf = costOf;
+exports.estimateCost = estimateCost;
+// The one list of models the review can run on. Prices are USD per million
+// tokens, from https://platform.claude.com/docs/en/about-claude/pricing
+// (read 2026-10-12).
+//
+// `tokensPerByte` feeds the pre-flight cost estimate only: models from 4.7 on
+// use a tokenizer that produces about 30% more tokens for the same text.
+exports.MODELS = {
+    "claude-haiku-4-5-20251001": { label: "Haiku 4.5", input: 1.0, output: 5.0, tokensPerByte: 0.25 },
+    "claude-sonnet-4-6": { label: "Sonnet 4.6", input: 3.0, output: 15.0, tokensPerByte: 0.25 },
+    "claude-opus-4-6": { label: "Opus 4.6", input: 5.0, output: 25.0, tokensPerByte: 0.25 },
+    // Haiku 5.5 costs 0.50 / 2.50 on prompts over 100,000 tokens; the default
+    // max-diff-size keeps a review under that, so the lower tier is used.
+    "claude-haiku-5-5": { label: "Haiku 5.5", input: 0.1, output: 0.5, tokensPerByte: 0.325 },
+    "claude-sonnet-5-5": { label: "Sonnet 5.5", input: 2.0, output: 10.0, tokensPerByte: 0.325 },
+    "claude-opus-5-5": { label: "Opus 5.5", input: 4.0, output: 20.0, tokensPerByte: 0.325 },
+};
+exports.DEFAULT_MODEL = "claude-sonnet-5-5";
+function isModelId(value) {
+    return Object.hasOwn(exports.MODELS, value);
+}
+/** Resolves a user-supplied model, falling back to the default when empty. Throws on an unknown id. */
+function resolveModel(value) {
+    if (!value)
+        return exports.DEFAULT_MODEL;
+    if (isModelId(value))
+        return value;
+    throw new Error(`Unknown model "${value}". Known models: ${Object.keys(exports.MODELS).join(", ")}.`);
+}
+function costOf(model, inputTokens, outputTokens) {
+    const { input, output } = exports.MODELS[model];
+    return (inputTokens * input + outputTokens * output) / 1_000_000;
+}
+// System prompt tokens and a typical narrative's output, for the estimate.
+const SYSTEM_PROMPT_TOKENS = 3000;
+const TYPICAL_OUTPUT_TOKENS = 4000;
+/** Cost guess from the diff's size alone, made before calling Claude. */
+function estimateCost(model, diffBytes) {
+    const scale = exports.MODELS[model].tokensPerByte / 0.25;
+    const inputTokens = Math.ceil(diffBytes * exports.MODELS[model].tokensPerByte) + SYSTEM_PROMPT_TOKENS * scale;
+    return costOf(model, inputTokens, TYPICAL_OUTPUT_TOKENS * scale);
 }
 
 
