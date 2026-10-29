@@ -35,3 +35,9 @@ yarn-error.log*
 !.claude/skills/
 dist-static/fixture.html
 .fixtures/
+
+# Mac app build output
+mac/NarrativeReview/DerivedData/
+xcuserdata/
+mac/evals/*/
+mac/evals/SUMMARY.md

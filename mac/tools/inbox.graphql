@@ -1,0 +1,26 @@
+query($q: String!, $n: Int!) {
+  viewer { login }
+  search(query: $q, type: ISSUE, first: $n) {
+    issueCount
+    nodes {
+      ... on PullRequest {
+        number title body url isDraft state
+        createdAt updatedAt
+        additions deletions changedFiles
+        reviewDecision mergeable
+        author { login }
+        repository { name owner { login } }
+        labels(first: 10) { nodes { name } }
+        reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
+        latestReviews(first: 20) { nodes { author { login } state submittedAt } }
+        reviews { totalCount }
+        comments { totalCount }
+        reviewThreads(first: 100) { totalCount nodes { isResolved comments { totalCount } } }
+        timelineItems(last: 1, itemTypes: [PULL_REQUEST_COMMIT, PULL_REQUEST_REVIEW, ISSUE_COMMENT, REVIEW_REQUESTED_EVENT]) { nodes { __typename } }
+        commits(last: 1) { nodes { commit { oid committedDate statusCheckRollup { state contexts(first: 40) { nodes {
+          ... on CheckRun { name conclusion status detailsUrl }
+          ... on StatusContext { context state targetUrl } } } } } } }
+      }
+    }
+  }
+}
