@@ -38,14 +38,14 @@ struct StatusBar: View {
     private var brainColor: Color {
         switch model.storytellerKind {
         case .apple: return model.appleAvailable ? .green : .red
-        case .claude: return model.hasClaudeKey ? .green : .red
+        case .claude: return !model.hasClaudeKey ? .red : model.claudeKeyStatus.hasPrefix("Key rejected") ? .orange : .green
         }
     }
 
     private var brainText: String {
         switch model.storytellerKind {
         case .apple: return model.appleAvailable ? "Apple on-device, free" : "Apple on-device unavailable (turn on Apple Intelligence)"
-        case .claude: return model.hasClaudeKey ? "Claude \(ClaudeModel.named(model.claudeModelID).name)" : "Claude: no API key (Settings)"
+        case .claude: return !model.hasClaudeKey ? "Claude: no API key (Settings)" : model.claudeKeyStatus.hasPrefix("Key rejected") ? "Claude: key rejected (Settings)" : "Claude \(ClaudeModel.named(model.claudeModelID).name)"
         }
     }
 }

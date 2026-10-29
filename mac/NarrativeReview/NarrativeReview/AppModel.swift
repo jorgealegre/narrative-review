@@ -65,10 +65,23 @@ final class AppModel {
     func loadClaudeKey() {
         Task.detached(priority: .utility) {
             let k = Keychain.read("anthropic") ?? ""
-            await MainActor.run { AppModel.shared.claudeKey = k }
+            await MainActor.run { AppModel.shared.claudeKey = k; AppModel.shared.verifyClaudeKey() }
         }
     }
-    func setClaudeKey(_ k: String) { Keychain.write("anthropic", k); claudeKey = k }
+    var claudeKeyStatus: String = ""
+    func setClaudeKey(_ k: String) {
+        Keychain.write("anthropic", k); claudeKey = k
+        verifyClaudeKey()
+    }
+    func verifyClaudeKey() {
+        let k = claudeKey
+        guard !k.isEmpty else { claudeKeyStatus = ""; return }
+        claudeKeyStatus = "Checking the key…"
+        Task {
+            let err = await ClaudeKeyCheck.verify(k)
+            claudeKeyStatus = err.map { "Key rejected. \($0)" } ?? "Key works (\(k.count) characters)."
+        }
+    }
 
     /// ⌥↓ / ⌥↑: the next PR in queue order, without going home.
     func stepQueue(_ delta: Int) {

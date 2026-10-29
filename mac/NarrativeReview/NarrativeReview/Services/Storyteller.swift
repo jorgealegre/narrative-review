@@ -145,6 +145,31 @@ enum ClaudeError: LocalizedError {
     }
 }
 
+/// One cheap call to prove a key works: list the models. Returns the error text when it does not.
+enum ClaudeKeyCheck {
+    static func verify(_ key: String) async -> String? {
+        guard !key.isEmpty else { return "No key." }
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/models?limit=1")!)
+        req.setValue("2026-10-21", forHTTPHeaderField: "anthropic-version")
+        if key.hasPrefix("sk-ant-oat") {
+            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        } else {
+            req.setValue(key, forHTTPHeaderField: "x-api-key")
+        }
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(code) { return nil }
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let msg = (obj?["error"] as? [String: Any])?["message"] as? String ?? String(decoding: data, as: UTF8.self)
+            return "Claude answered \(code): \(msg)"
+        } catch {
+            return error.localizedDescription
+        }
+    }
+}
+
 /// Raw HTTP to the Messages API. Structured output keeps the JSON shape honest.
 struct ClaudeStoryteller: Storyteller {
     var model: ClaudeModel

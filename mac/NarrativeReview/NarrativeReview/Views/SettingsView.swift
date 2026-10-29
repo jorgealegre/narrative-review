@@ -18,10 +18,14 @@ struct SettingsView: View {
                 }
                 TextField("Monthly budget (USD), warns in the status bar", value: $model.monthlyBudget, format: .number)
                 SecureField("Claude API key (starts with sk-ant-api03-)", text: $apiKey)
-                    .onAppear { apiKey = model.claudeKey }
+                    .onAppear { apiKey = model.claudeKey; model.verifyClaudeKey() }
                     .onChange(of: apiKey) { _, v in model.setClaudeKey(v.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                if !apiKey.isEmpty && !apiKey.hasPrefix("sk-ant-") {
-                    Label("This does not look like a secret key. The secret starts with sk-ant-api03- and is shown once when you create it; apikey_… is only the key's id.", systemImage: "exclamationmark.triangle")
+                if !model.claudeKeyStatus.isEmpty {
+                    Label(model.claudeKeyStatus, systemImage: model.claudeKeyStatus.hasPrefix("Key works") ? "checkmark.seal.fill" : "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(model.claudeKeyStatus.hasPrefix("Key works") ? .green : .orange)
+                }
+                if !apiKey.isEmpty && (!apiKey.hasPrefix("sk-ant-") || apiKey.count < 60) {
+                    Label("This does not look like a full secret key (about 108 characters, starts with sk-ant-api03-). The console list only shows a masked hint; the secret is shown once when you create a key.", systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
                 Text("Stored in your login Keychain, never on disk, sent only to api.anthropic.com. Create a key with its own spend limit at platform.claude.com.")
