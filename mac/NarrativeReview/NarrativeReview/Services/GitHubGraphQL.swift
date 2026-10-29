@@ -9,7 +9,7 @@ enum InboxQuery {
         nodes {
           ... on PullRequest {
             number title body url isDraft createdAt updatedAt additions deletions changedFiles
-            reviewDecision mergeable
+            reviewDecision mergeable mergeStateStatus baseRefName
             author { login }
             repository { name owner { login } }
             labels(first: 10) { nodes { name } }
@@ -76,6 +76,7 @@ enum InboxQuery {
                 createdAt: date(n["createdAt"]) ?? .distantPast, updatedAt: date(n["updatedAt"]) ?? .distantPast,
                 additions: n["additions"] as? Int ?? 0, deletions: n["deletions"] as? Int ?? 0, changedFiles: n["changedFiles"] as? Int ?? 0,
                 reviewDecision: str(n["reviewDecision"]), mergeable: str(n["mergeable"]),
+                mergeStateStatus: str(n["mergeStateStatus"]), baseRefName: str(n["baseRefName"]) ?? "main",
                 labels: (((n["labels"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []).compactMap { str($0["name"]) },
                 requestedReviewers: requested, latestReviews: reviews,
                 reviewCount: (n["reviews"] as? [String: Any])?["totalCount"] as? Int ?? 0,

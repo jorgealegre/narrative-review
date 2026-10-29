@@ -166,9 +166,15 @@ struct ClaudeStoryteller: Storyteller {
         req.httpMethod = "POST"
         req.timeoutInterval = 600
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         req.setValue("2026-10-21", forHTTPHeaderField: "anthropic-version")
-        req.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        if apiKey.hasPrefix("sk-ant-oat") {
+            // An OAuth access token (from `ant auth`) goes on Authorization, with the OAuth beta.
+            req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            req.setValue("oauth-2025-04-20,server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        } else {
+            req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            req.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let start = Date()
         let (data, resp) = try await URLSession.shared.data(for: req)

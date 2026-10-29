@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
-    @State private var apiKey: String = Keychain.read("anthropic") ?? ""
+    @State private var apiKey: String = ""
 
     var body: some View {
         @Bindable var model = model
@@ -17,9 +17,14 @@ struct SettingsView: View {
                     }
                 }
                 TextField("Monthly budget (USD), warns in the status bar", value: $model.monthlyBudget, format: .number)
-                SecureField("Claude API key", text: $apiKey)
-                    .onChange(of: apiKey) { _, v in Keychain.write("anthropic", v.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                Text("Stored in your login Keychain, never on disk. Create a key with its own spend limit at platform.claude.com.")
+                SecureField("Claude API key (starts with sk-ant-api03-)", text: $apiKey)
+                    .onAppear { apiKey = model.claudeKey }
+                    .onChange(of: apiKey) { _, v in model.setClaudeKey(v.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                if !apiKey.isEmpty && !apiKey.hasPrefix("sk-ant-") {
+                    Label("This does not look like a secret key. The secret starts with sk-ant-api03- and is shown once when you create it; apikey_… is only the key's id.", systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                Text("Stored in your login Keychain, never on disk, sent only to api.anthropic.com. Create a key with its own spend limit at platform.claude.com.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Inbox") {

@@ -44,6 +44,8 @@ struct PullRequest: Identifiable, Hashable, Codable, Sendable {
     var changedFiles: Int
     var reviewDecision: String?   // APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED
     var mergeable: String?        // MERGEABLE, CONFLICTING, UNKNOWN
+    var mergeStateStatus: String? // BEHIND, BLOCKED, CLEAN, DIRTY, UNSTABLE, HAS_HOOKS, UNKNOWN
+    var baseRefName: String = "main"
     var labels: [String]
     var requestedReviewers: [String]
     var latestReviews: [ReviewItem]
@@ -144,7 +146,10 @@ enum Triage {
                                  reason: "Approved by \(pr.approvers.joined(separator: ", ")), checks \(pr.checksState?.lowercased() ?? "unknown")", urgency: 100)
             }
             if pr.mergeable == "CONFLICTING" {
-                return TriagedPR(pr: pr, attention: .fixChecks, reason: "Merge conflict with the base branch", urgency: 85)
+                return TriagedPR(pr: pr, attention: .fixChecks, reason: "Merge conflict with \(pr.baseRefName): needs your hands", urgency: 85)
+            }
+            if pr.mergeStateStatus == "BEHIND" {
+                return TriagedPR(pr: pr, attention: .fixChecks, reason: "Behind \(pr.baseRefName): one click updates the branch", urgency: 80)
             }
             if !pr.changeRequesters.isEmpty || pr.unresolvedThreads > 0 {
                 let who = pr.changeRequesters.first ?? pr.humanReviewers.first ?? "a reviewer"

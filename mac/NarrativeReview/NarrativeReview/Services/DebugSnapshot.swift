@@ -20,7 +20,11 @@ enum DebugSnapshot {
                     model.path = [lines[1]]
                     try? await Task.sleep(for: .seconds(2.5))
                 }
-                if lines.count > 2, lines[2] == "tell", let pr = model.path.last.flatMap({ model.ref($0) }) {
+                if lines.count > 2, lines[2].hasPrefix("tell"), let pr = model.path.last.flatMap({ model.ref($0) }) {
+                    // "tell" uses the current brain; "tell:claude:claude-sonnet-5-5" picks one for this run.
+                    let parts = lines[2].split(separator: ":").map(String.init)
+                    if parts.count >= 2 { model.storytellerKind = parts[1] == "claude" ? .claude : .apple }
+                    if parts.count >= 3 { model.claudeModelID = parts[2] }
                     model.tellStory(for: pr)
                     var waited = 0
                     while model.progress[pr.id] != nil, waited < 1200 {
@@ -32,7 +36,7 @@ enum DebugSnapshot {
                 let state = """
                 inbox: \(model.prs.count) error: \(model.inboxError ?? "none") loading: \(model.isLoadingInbox) viewer: \(model.viewerLogin ?? "?")
                 reviews: \(model.reviews.keys.sorted())
-                gists: \(model.gistText.count)
+                gists: \(model.gistText.count) key: \({ let k = model.claudeKey; return k.isEmpty ? "none" : "\(k.prefix(10))… len \(k.count)" }())
                 path: \(model.path)
                 progress: \(model.progress.mapValues(\.step)) errors: \(model.errors)
                 \(board)

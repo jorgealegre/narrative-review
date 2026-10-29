@@ -54,8 +54,30 @@ final class AppModel {
     @ObservationIgnored @AppStorage("claudeModel") var claudeModelID: String = "claude-opus-5-5"
     @ObservationIgnored @AppStorage("inboxScope") var inboxScope: String = "org:sp0n-7"
     @ObservationIgnored @AppStorage("autoTell") var autoTell: Bool = true
-    @ObservationIgnored @AppStorage("pollMinutes") var pollMinutes: Int = 3
+    @ObservationIgnored @AppStorage("pollMinutes") var pollMinutes: Int = 1
     @ObservationIgnored @AppStorage("monthlyBudget") var monthlyBudget: Double = 20
+    var textScale: Double = 1
+
+    /// The Claude key, read from the Keychain once (each read can raise a system prompt) and refreshed from Settings.
+    private(set) var claudeKey: String = ""
+    var hasClaudeKey: Bool { !claudeKey.isEmpty }
+    /// Off the main thread: the Keychain can show a system prompt and wait on it.
+    func loadClaudeKey() {
+        Task.detached(priority: .utility) {
+            let k = Keychain.read("anthropic") ?? ""
+            await MainActor.run { AppModel.shared.claudeKey = k }
+        }
+    }
+    func setClaudeKey(_ k: String) { Keychain.write("anthropic", k); claudeKey = k }
+
+    /// ⌥↓ / ⌥↑: the next PR in queue order, without going home.
+    func stepQueue(_ delta: Int) {
+        let order = board.flatMap { $0.1.map(\.id) }
+        guard !order.isEmpty else { return }
+        let cur = path.last.flatMap { order.firstIndex(of: $0) } ?? -1
+        let next = min(max(0, cur + delta), order.count - 1)
+        path = [order[next]]
+    }
 
     var appleAvailable: Bool {
         if case .available = SystemLanguageModel.default.availability { return true }
@@ -64,6 +86,7 @@ final class AppModel {
 
     init() {
         for r in ReviewStore.loadAll() { reviews[r.id] = r }
+        loadClaudeKey()
     }
 
     // MARK: Inbox
@@ -110,12 +133,34 @@ final class AppModel {
         }
     }
 
-    /// Polls GitHub forever. Nobody should need a refresh button.
+    /// Polls GitHub forever, and again whenever the app comes to the front. Nobody should need a refresh button.
+    /// (A desktop app cannot receive GitHub webhooks without a server, so polling is the honest option.)
     func startRunner() {
         Task {
             while true {
                 await refreshInbox()
                 try? await Task.sleep(for: .seconds(Double(max(pollMinutes, 1)) * 60))
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in
+                if let t = self.lastRefreshed, Date().timeIntervalSince(t) > 20 { await self.refreshInbox() }
+            }
+        }
+    }
+
+    var notes: [String: String] = [:]   // short per-PR status lines for actions the user took
+
+    func updateBranch(_ pr: PullRequest) {
+        notes[pr.id] = "Asking GitHub to merge \(pr.baseRefName) in…"
+        Task {
+            do {
+                try await github.updateBranch(owner: pr.owner, repo: pr.repo, number: pr.number)
+                notes[pr.id] = "GitHub is merging \(pr.baseRefName) in; checks will run again."
+                try? await Task.sleep(for: .seconds(8))
+                await refreshInbox()
+            } catch {
+                notes[pr.id] = "Could not update: \(error.localizedDescription)"
             }
         }
     }
@@ -134,7 +179,7 @@ final class AppModel {
     func storyteller() -> any Storyteller {
         switch storytellerKind {
         case .apple: return FoundationStoryteller()
-        case .claude: return ClaudeStoryteller(model: ClaudeModel.named(claudeModelID), apiKey: Keychain.read("anthropic") ?? "")
+        case .claude: return ClaudeStoryteller(model: ClaudeModel.named(claudeModelID), apiKey: claudeKey)
         }
     }
 

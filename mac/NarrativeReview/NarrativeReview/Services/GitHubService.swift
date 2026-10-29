@@ -115,6 +115,18 @@ actor GitHubService {
         }.joined(separator: "\n")
     }
 
+    /// Merges the base branch into the PR branch on GitHub (the "Update branch" button).
+    func updateBranch(owner: String, repo: String, number: Int) async throws {
+        let token = try await login()
+        var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/update-branch")!)
+        req.httpMethod = "PUT"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else { throw GitHubError.http(code, String(decoding: data, as: UTF8.self)) }
+    }
+
     func diff(_ ref: PRRef) async throws -> String {
         let data = try await get("https://api.github.com/repos/\(ref.owner)/\(ref.repo)/pulls/\(ref.number)",
                                  accept: "application/vnd.github.v3.diff")

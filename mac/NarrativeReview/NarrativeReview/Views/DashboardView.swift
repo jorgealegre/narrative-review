@@ -123,6 +123,7 @@ struct PRCard: View {
 
     var body: some View {
         let pr = triaged.pr
+        let _ = { if !pr.failedChecks.isEmpty { model.explainFailures(pr) } }()
         let gist = model.gistText[pr.id]
         let story = model.reviews[pr.id]
         let busy = model.progress[pr.id]
@@ -133,6 +134,15 @@ struct PRCard: View {
                         .font(.system(size: 17, weight: .semibold))
                         .fixedSize(horizontal: false, vertical: true)
                     Text(triaged.reason).font(.callout).foregroundStyle(tint)
+                    if pr.mergeStateStatus == "BEHIND", pr.author == model.viewerLogin {
+                        HStack(spacing: 8) {
+                            Button("Update branch") { model.updateBranch(pr) }.buttonStyle(.bordered).controlSize(.small)
+                            if let n = model.notes[pr.id] { Text(n).font(.caption).foregroundStyle(.secondary) }
+                        }
+                    }
+                    if let note = pr.failedChecks.first.flatMap({ model.failureNotes["\(pr.id)|\($0.name)"] }) {
+                        Label(note, systemImage: "lightbulb").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
                     HStack(spacing: 10) {
                         PlatformBadge(repo: pr.repo)
                         Text("#\(pr.number)")
@@ -189,7 +199,13 @@ struct PRCard: View {
         if total == 0 {
             Text("no checks").font(.caption).foregroundStyle(.tertiary)
         } else if failed > 0 {
-            Label("\(failed) of \(total) checks red", systemImage: "xmark.circle.fill").font(.caption).foregroundStyle(.red)
+            VStack(alignment: .trailing, spacing: 2) {
+                ForEach(pr.failedChecks.prefix(3)) { c in
+                    Label(c.name, systemImage: "xmark.circle.fill").font(.caption).foregroundStyle(.red).lineLimit(1)
+                }
+                if failed > 3 { Text("+\(failed - 3) more red").font(.caption).foregroundStyle(.red) }
+                Text("\(total - failed - pending) of \(total) green").font(.caption2).foregroundStyle(.tertiary)
+            }
         } else if pending > 0 {
             Label("\(pending) checks running", systemImage: "circle.dotted").font(.caption).foregroundStyle(.orange)
         } else {

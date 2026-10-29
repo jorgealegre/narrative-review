@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// One secret per account under the app's own Keychain service. Never written to disk in clear.
-enum Keychain {
+nonisolated enum Keychain {
     static let service = "dev.alegre.NarrativeReview"
 
     static func read(_ account: String) -> String? {
