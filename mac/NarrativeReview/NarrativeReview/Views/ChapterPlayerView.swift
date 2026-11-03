@@ -48,6 +48,14 @@ struct ChapterPlayerView: View {
             .animation(.easeInOut(duration: 0.4), value: player.frame?.shot)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .top) { StorySegments(player: player).padding(.horizontal, 14).padding(.top, 10) }
+            .overlay(alignment: .topTrailing) {
+                if !player.isPlaying, player.frame?.kind != .endCard {
+                    Label("paused · space", systemImage: "pause.fill").font(.caption.weight(.semibold)).foregroundStyle(Stage.textBright)
+                        .padding(.horizontal, 10).padding(.vertical, 5).background(Stage.backgroundHighlight, in: Capsule())
+                        .padding(.top, 22).padding(.trailing, 14).transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: player.isPlaying)
             .overlay { TapZones(player: player) }
             Timeline(player: player, chapterIndex: chapterIndex, chapterCount: chapterCount)
         }
@@ -100,7 +108,7 @@ struct ChapterCard: View {
         VStack(alignment: .leading, spacing: 22) {
             Spacer()
             Text("CHAPTER \(index + 1) OF \(count)").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(Stage.accent)
-            Text(chapter.title).font(.system(size: 40, weight: .bold, design: .rounded)).foregroundStyle(Stage.textBright)
+            Text(chapter.title).font(.system(size: 40, weight: .bold, design: .rounded)).foregroundStyle(Color.white.opacity(0.92))
                 .fixedSize(horizontal: false, vertical: true)
             Text(chapter.narrative).font(.system(size: 20)).lineSpacing(6).foregroundStyle(Stage.text)
                 .fixedSize(horizontal: false, vertical: true)
@@ -151,7 +159,7 @@ struct FileCard: View {
             Spacer()
             HStack(spacing: 8) { Image(systemName: p.symbol); Text(p.name.uppercased()).tracking(3) }
                 .font(.caption.weight(.semibold)).foregroundStyle(p.color)
-            Text(parts.last ?? shot.hunk.file).font(.system(size: 38, weight: .bold, design: .rounded)).foregroundStyle(Stage.textBright)
+            Text(parts.last ?? shot.hunk.file).font(.system(size: 38, weight: .bold, design: .rounded)).foregroundStyle(Color.white.opacity(0.92))
                 .multilineTextAlignment(.center)
             if parts.count > 1 {
                 Text(parts.dropLast().joined(separator: " / ")).font(.system(size: 14, design: .monospaced)).foregroundStyle(Stage.gutter)
@@ -160,7 +168,7 @@ struct FileCard: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(min(1, progress * 5))
+        .opacity(min(1, 0.35 + progress * 6))
     }
 }
 
@@ -202,13 +210,14 @@ struct TapZones: View {
     @State private var holding = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            Color.clear.contentShape(Rectangle())
-                .onTapGesture { player.previousShot() }
-                .frame(maxWidth: .infinity)
-            Color.clear.contentShape(Rectangle())
-                .onTapGesture { player.nextShot() }
-                .frame(maxWidth: .infinity).frame(maxWidth: .infinity)
+        GeometryReader { g in
+            HStack(spacing: 0) {
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture { player.previousShot() }
+                    .frame(width: g.size.width / 3)
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture { player.nextShot() }
+            }
         }
         .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 50, perform: {}, onPressingChanged: { pressing in
             if pressing { holding = player.isPlaying; if holding { player.pause() } }
@@ -335,7 +344,8 @@ struct CodeStage: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(frame.lines) { line in
                             FilmLineView(line: line, language: lang, isCursor: frame.cursorLine == line.id,
-                                         distance: frame.cursorLine.map { abs($0 - line.id) } ?? 0).id(line.id)
+                                         distance: frame.cursorLine.map { abs($0 - line.id) } ?? 0,
+                                         ghost: showCallout || frame.caption == "Before").id(line.id)
                         }
                     }
                     .padding(.vertical, 14)
@@ -358,6 +368,7 @@ struct FilmLineView: View {
     let language: CodeLanguage
     let isCursor: Bool
     var distance: Int = 0
+    var ghost: Bool = false        // before typing starts: show what is coming, faintly
 
     var body: some View {
         let (bg, opacity, strike, hidden): (Color, Double, Bool, Bool) = {
@@ -365,7 +376,7 @@ struct FilmLineView: View {
             case .context: return (.clear, 1, false, false)
             case .removing(let p): return (Stage.removed.opacity(0.22 * (1 - p) + 0.04), 1 - 0.75 * p, true, false)
             case .removed: return (.clear, 0, false, true)
-            case .adding(let typed): return (Stage.added.opacity(0.14), 1, false, typed == 0 && !isCursor)
+            case .adding(let typed): return ghost && typed == 0 ? (.clear, 0.28, false, false) : (Stage.added.opacity(0.14), 1, false, typed == 0 && !isCursor)
             case .added: return (Stage.added.opacity(0.09), 1, false, false)
             }
         }()
@@ -374,7 +385,7 @@ struct FilmLineView: View {
                 Text(line.newNumber.map(String.init) ?? line.oldNumber.map(String.init) ?? "")
                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(Stage.gutter.opacity(0.8))
                     .frame(width: 40, alignment: .trailing).padding(.trailing, 14).padding(.top, 2)
-                Text(line.visibleText.isEmpty ? AttributedString(" ") : SyntaxHighlighter.attributed(line.visibleText, language: language, theme: .solarizedDark))
+                Text({ let t = ghost ? line.text : line.visibleText; return t.isEmpty ? AttributedString(" ") : SyntaxHighlighter.attributed(t, language: language, theme: .solarizedDark) }())
                     .font(.system(size: 14.5, design: .monospaced))
                     .foregroundStyle(Stage.text)
                     .strikethrough(strike, color: Stage.removed)
@@ -452,6 +463,7 @@ final class FilmPlayer {
     var finished: Bool { !film.frames.isEmpty && frameIndex >= film.frames.count - 1 }
     var frame: FilmFrame? { film.frames[safe: frameIndex] }
     private var task: Task<Void, Never>?
+    private var generation = 0
 
     func load(_ film: Film) { pause(); self.film = film; frameIndex = 0 }
 
@@ -460,13 +472,16 @@ final class FilmPlayer {
         if finished { frameIndex = 0 }
         isPlaying = true
         task?.cancel()
+        generation += 1
+        let gen = generation
         task = Task { [weak self] in
             while let self, !Task.isCancelled, self.isPlaying, !self.finished {
                 try? await Task.sleep(for: .seconds(Film.frameSeconds / self.speed))
                 if Task.isCancelled { break }
                 self.frameIndex += 1
             }
-            self?.isPlaying = false
+            // Only the clock that is still current may stop the film; a cancelled one must not.
+            if let self, self.generation == gen { self.isPlaying = false }
         }
     }
 

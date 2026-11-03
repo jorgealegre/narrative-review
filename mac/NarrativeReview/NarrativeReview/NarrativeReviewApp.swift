@@ -9,6 +9,7 @@ struct NarrativeReviewApp: App {
     init() {
         #if DEBUG
         DebugSnapshot.start(model: AppModel.shared)
+        DebugDrive.start(model: AppModel.shared)
         #endif
     }
 
