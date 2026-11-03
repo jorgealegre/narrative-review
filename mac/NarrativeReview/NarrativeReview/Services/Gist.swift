@@ -44,6 +44,28 @@ actor GistWriter {
         }
     }
 
+    @Generable
+    struct QuizDraft {
+        @Guide(description: "One question about the single most important fact in this change, the one a reviewer must not get wrong")
+        var question: String
+        @Guide(description: "Exactly three short answer options, one correct, two plausible but wrong")
+        var options: [String]
+        @Guide(description: "Index of the correct option: 0, 1 or 2")
+        var answerIndex: Int
+        @Guide(description: "One sentence saying why the right answer is right")
+        var why: String
+    }
+
+    /// One quick check for the end of the film. Free, on device.
+    func quiz(for review: NarrativeReview) async -> Quiz? {
+        guard case .available = SystemLanguageModel.default.availability else { return nil }
+        let session = LanguageModelSession(instructions: "You write one multiple-choice question that checks whether a code reviewer understood the key fact of a pull request. Concrete, about behavior or a value, never trivia about file names.")
+        let text = ([review.summary, review.rootCause] + review.chapters.prefix(6).map { "\($0.title): \($0.narrative)" }).joined(separator: "\n").prefix(3500)
+        guard let r = try? await session.respond(to: String(text), generating: QuizDraft.self).content, r.options.count == 3,
+              (0..<3).contains(r.answerIndex) else { return nil }
+        return Quiz(question: r.question, options: r.options, answerIndex: r.answerIndex, why: r.why)
+    }
+
     /// Summarizes failed check annotations in one sentence, with what to do about it.
     func explainFailure(check: String, text: String) async -> String? {
         guard case .available = SystemLanguageModel.default.availability else { return nil }

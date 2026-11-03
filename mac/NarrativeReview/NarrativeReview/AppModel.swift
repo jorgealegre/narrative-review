@@ -55,6 +55,36 @@ final class AppModel {
     var chapterProgress: Double = 0
     var filmSeekToEnd = 0      // bumped by the test hook to jump to the closing card
 
+    // Watched stories and the streak: the game part.
+    @ObservationIgnored @AppStorage("watched") private var watchedData: Data = Data()
+    @ObservationIgnored @AppStorage("watchDays") private var watchDaysData: Data = Data()
+    var watched: [String: Date] = [:]
+    var watchDays: [String] = []   // yyyy-MM-dd of days with at least one story watched
+
+    func loadWatched() {
+        watched = (try? JSONDecoder.review.decode([String: Date].self, from: watchedData)) ?? [:]
+        watchDays = (try? JSONDecoder().decode([String].self, from: watchDaysData)) ?? []
+    }
+    func markWatched(_ id: String) {
+        guard watched[id] == nil else { return }
+        watched[id] = Date()
+        watchedData = (try? JSONEncoder.review.encode(watched)) ?? Data()
+        let day = Self.dayKey(Date())
+        if !watchDays.contains(day) { watchDays.append(day); watchDaysData = (try? JSONEncoder().encode(watchDays)) ?? Data() }
+    }
+    func hasWatched(_ id: String) -> Bool {
+        guard let r = reviews[id], let w = watched[id] else { return false }
+        return ISO8601DateFormatter().date(from: r.analyzedAt).map { $0 <= w } ?? true
+    }
+    var watchedToday: Int { watched.values.filter { Calendar.current.isDateInToday($0) }.count }
+    var streakDays: Int {
+        var n = 0
+        var d = Date()
+        while watchDays.contains(Self.dayKey(d)) { n += 1; d = Calendar.current.date(byAdding: .day, value: -1, to: d)! }
+        return n
+    }
+    static func dayKey(_ d: Date) -> String { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: d) }
+
     func stepChapter(_ delta: Int) {
         guard let pr = openPR, let r = reviews[pr.id], !r.chapters.isEmpty else { return }
         let i = r.chapters.firstIndex { $0.id == selectedChapterID } ?? 0
@@ -112,6 +142,7 @@ final class AppModel {
     init() {
         for r in ReviewStore.loadAll() { reviews[r.id] = r }
         loadClaudeKey()
+        loadWatched()
     }
 
     // MARK: Inbox
@@ -322,6 +353,10 @@ final class AppModel {
             ReviewStore.save(review)
             reviews[review.id] = review
             ledger.record(pr: review.id, metrics: metrics)
+            if appleAvailable, let q = await gists.quiz(for: review) {
+                var withQuiz = review; withQuiz.quiz = q
+                ReviewStore.save(withQuiz); reviews[review.id] = withQuiz
+            }
         } catch {
             errors[id] = error.localizedDescription
             log.error("story failed for \(id): \(error.localizedDescription)")

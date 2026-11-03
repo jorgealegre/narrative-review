@@ -51,6 +51,15 @@ until a key exists.
   is a GitHub secret and cannot be read back. Needs the Citizen console admin.
 - Snapshot script now lives in `mac/tools/snap.sh`.
 
+## Session 4 (2026-11-03, the film)
+- Film: chapter transitions (slide and fade), end card with Watch again / Next in queue / Review on GitHub, adaptive
+  typing so no shot runs past 18 s, a hold on the file before changes, a spotlight on the line being written.
+- Stories format (Jorge: "like interactive WhatsApp stories, gamified"): segments on top of the stage, click left/right
+  to step, hold to pause, rings on the board for stories not watched yet, watched-today and day-streak counters,
+  one on-device quiz question on the end card (stored in the review JSON as `quiz`; the film pauses there).
+- Test hook lines: `chapter:<n>` selects a chapter, `end` jumps to the closing card, `tell:apple` / `tell:claude:<model>`.
+  Mind that `tell:claude:` leaves Claude as the default brain afterwards.
+
 ## Open
 - **Push**: the branch `mac-app` is committed locally and not pushed (the agent's push was blocked by the permission
   classifier). Jorge runs `git -C ~/Developer/Citizen/narrative-review push -u origin mac-app`.

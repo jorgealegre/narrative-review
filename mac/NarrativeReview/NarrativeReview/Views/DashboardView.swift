@@ -41,7 +41,17 @@ struct DashboardView: View {
                     Text(subtitle).font(.title3).foregroundStyle(Theme.muted)
                 }
                 Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(model.watchedToday)").font(Theme.display(28)).foregroundStyle(Theme.accent).monospacedDigit()
+                    Text("watched today").font(.caption).foregroundStyle(Theme.muted)
+                }
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(model.streakDays)").font(Theme.display(28)).foregroundStyle(model.streakDays > 0 ? Theme.warn : Theme.faint).monospacedDigit()
+                    Text("day streak").font(.caption).foregroundStyle(Theme.muted)
+                }
+                .padding(.leading, 18)
             }
+            StoriesRow()
             HStack(spacing: 8) {
                 FilterChip(title: "All", count: model.prs.count, color: Theme.muted, selected: model.platformFilter == nil) { model.platformFilter = nil }
                 ForEach(model.platformsPresent, id: \.self) { p in
@@ -217,5 +227,44 @@ enum PRCardTime {
     static func relative(_ d: Date) -> String {
         let f = RelativeDateTimeFormatter(); f.unitsStyle = .short
         return f.localizedString(for: d, relativeTo: Date())
+    }
+}
+
+
+/// Stories, like a messaging app: one ring per PR that has a story. Bright ring = not watched yet.
+struct StoriesRow: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let items = model.board.flatMap(\.1).filter { model.reviews[$0.pr.id] != nil }
+        if !items.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 14) {
+                    ForEach(items) { t in
+                        let seen = model.hasWatched(t.pr.id)
+                        Button { model.path.append(t.pr.id) } label: {
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    Circle().strokeBorder(
+                                        seen ? AnyShapeStyle(Theme.line) : AnyShapeStyle(AngularGradient(colors: [Theme.accent, Platform.of(repo: t.pr.repo).color, Theme.warn, Theme.accent], center: .center)),
+                                        lineWidth: seen ? 1.5 : 3)
+                                        .frame(width: 58, height: 58)
+                                    Avatar(login: t.pr.author, size: 48).opacity(seen ? 0.6 : 1)
+                                    Image(systemName: Platform.of(repo: t.pr.repo).symbol).font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(Theme.background).padding(4).background(Platform.of(repo: t.pr.repo).color, in: Circle())
+                                        .offset(x: 20, y: 20)
+                                }
+                                Text((model.gistText[t.pr.id]?.sentence ?? t.pr.title).prefix(22) + "…").font(.caption2).foregroundStyle(seen ? Theme.faint : Theme.muted).lineLimit(1)
+                                    .frame(width: 76)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help(model.gistText[t.pr.id]?.sentence ?? t.pr.title)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .scrollIndicators(.hidden)
+        }
     }
 }

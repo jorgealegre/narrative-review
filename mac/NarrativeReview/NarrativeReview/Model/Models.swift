@@ -121,6 +121,7 @@ struct NarrativeReview: Codable, Hashable, Sendable, Identifiable {
     var metrics: AnalysisMetrics?
     var analyzedAt: String
     var headSha: String?
+    var quiz: Quiz?
 
     var id: String { "\(prInfo.owner)/\(prInfo.repo)#\(prInfo.number)" }
 
@@ -147,6 +148,14 @@ struct NarrativeReview: Codable, Hashable, Sendable, Identifiable {
         let lines = chapters.reduce(0) { $0 + $1.hunks.reduce(0) { $0 + $1.diffContent.split(separator: "\n").count } }
         return words == 0 ? 0 : Double(lines) / Double(words)
     }
+}
+
+/// One question at the end of the film, about the thing a reviewer must not misunderstand.
+struct Quiz: Codable, Hashable, Sendable {
+    var question: String
+    var options: [String]
+    var answerIndex: Int
+    var why: String
 }
 
 /// What a storyteller returns before coverage is checked and hunk text is attached.

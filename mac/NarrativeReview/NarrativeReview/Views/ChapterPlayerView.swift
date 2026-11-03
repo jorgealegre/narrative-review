@@ -47,6 +47,8 @@ struct ChapterPlayerView: View {
             .animation(.easeInOut(duration: 0.4), value: player.frame?.kind)
             .animation(.easeInOut(duration: 0.4), value: player.frame?.shot)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .top) { StorySegments(player: player).padding(.horizontal, 14).padding(.top, 10) }
+            .overlay { TapZones(player: player) }
             Timeline(player: player, chapterIndex: chapterIndex, chapterCount: chapterCount)
         }
         .background(Stage.background)
@@ -76,6 +78,10 @@ struct ChapterPlayerView: View {
         }
         .onChange(of: player.frameIndex) { _, i in
             model.chapterProgress = player.film.frames.isEmpty ? 0 : Double(i) / Double(max(1, player.film.frames.count - 1))
+            if player.frame?.kind == .endCard {
+                model.markWatched(review.id)
+                if review.quiz != nil, player.isPlaying { player.pause() }   // the quiz waits for an answer
+            }
         }
         .onChange(of: player.finished) { _, done in
             if done, player.autoAdvance, chapterIndex + 1 < chapterCount { Task { try? await Task.sleep(for: .seconds(0.4)); onChapterEnd() } }
@@ -158,20 +164,112 @@ struct FileCard: View {
     }
 }
 
+/// WhatsApp-style: one thin segment per shot (and per card), filling as the film plays.
+struct StorySegments: View {
+    let player: FilmPlayer
+
+    var body: some View {
+        let shots = player.film.shots
+        let cur = player.frame?.shot ?? -1
+        let kind = player.frame?.kind
+        let inCards = kind == .chapterCard || kind == .notesCard
+        let atEnd = kind == .endCard
+        HStack(spacing: 4) {
+            segment(fill: inCards ? (player.frame?.progress ?? 0) : 1)   // the chapter card
+            ForEach(shots) { s in
+                segment(fill: atEnd || cur > s.id ? 1 : cur == s.id ? (player.frame?.progress ?? 0) : 0)
+            }
+            if player.film.frames.contains(where: { $0.kind == .endCard }) {
+                segment(fill: atEnd ? (player.frame?.progress ?? 0) : 0)
+            }
+        }
+        .frame(height: 3)
+    }
+
+    private func segment(fill: Double) -> some View {
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Stage.textBright.opacity(0.22))
+                Capsule().fill(Stage.textBright.opacity(0.95)).frame(width: g.size.width * min(1, max(0, fill)))
+            }
+        }
+    }
+}
+
+/// Stories controls: click the left third to go back, the right side to go on, hold to pause.
+struct TapZones: View {
+    let player: FilmPlayer
+    @State private var holding = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { player.previousShot() }
+                .frame(maxWidth: .infinity)
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { player.nextShot() }
+                .frame(maxWidth: .infinity).frame(maxWidth: .infinity)
+        }
+        .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 50, perform: {}, onPressingChanged: { pressing in
+            if pressing { holding = player.isPlaying; if holding { player.pause() } }
+            else if holding { player.play(); holding = false }
+        })
+        .overlay(alignment: .center) {
+            if holding {
+                Label("paused", systemImage: "pause.fill").font(.caption.weight(.semibold)).foregroundStyle(Stage.textBright)
+                    .padding(.horizontal, 10).padding(.vertical, 5).background(Stage.backgroundHighlight, in: Capsule())
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
 /// After the last chapter: the story in one breath, and the three things to do next.
 struct EndCard: View {
+    @Environment(AppModel.self) private var model
     let review: NarrativeReview
     let progress: Double
     let onReplay: () -> Void
     let onNextPR: () -> Void
+    @State private var picked: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Spacer()
-            Text("THE END").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(Stage.accent)
-            Text(review.title).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(Stage.textBright)
+            HStack(spacing: 14) {
+                Text("THE END").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(Stage.accent)
+                Text("\(model.watchedToday) watched today · \(model.streakDays)-day streak").font(.caption).foregroundStyle(Stage.gutter)
+            }
+            if let q = review.quiz {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("QUICK CHECK").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(Stage.accent)
+                    Text(q.question).font(.system(size: 20, weight: .semibold)).foregroundStyle(Stage.textBright).fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(q.options.enumerated()), id: \.offset) { i, opt in
+                        Button { withAnimation(.spring(duration: 0.3)) { picked = i } } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: picked == nil ? "circle" : i == q.answerIndex ? "checkmark.circle.fill" : picked == i ? "xmark.circle.fill" : "circle")
+                                    .foregroundStyle(picked == nil ? Stage.gutter : i == q.answerIndex ? Stage.added : picked == i ? Stage.removed : Stage.gutter)
+                                Text(opt).font(.system(size: 16)).foregroundStyle(Stage.textBright).fixedSize(horizontal: false, vertical: true)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(picked == i ? (i == q.answerIndex ? Stage.added.opacity(0.15) : Stage.removed.opacity(0.15)) : Stage.backgroundHighlight.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: [])
+                    }
+                    if let p = picked {
+                        Text(p == q.answerIndex ? "Right. \(q.why)" : "Not quite. \(q.why)").font(.system(size: 15)).foregroundStyle(Stage.text).fixedSize(horizontal: false, vertical: true)
+                            .transition(.opacity)
+                    }
+                }
+                .padding(18).background(Stage.backgroundHighlight.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+            }
+            Text(review.title).font(.system(size: review.quiz == nil ? 34 : 26, weight: .bold, design: .rounded)).foregroundStyle(Stage.textBright)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(review.summary).font(.system(size: 19)).lineSpacing(5).foregroundStyle(Stage.text).fixedSize(horizontal: false, vertical: true)
+            if review.quiz == nil {
+                Text(review.summary).font(.system(size: 19)).lineSpacing(5).foregroundStyle(Stage.text).fixedSize(horizontal: false, vertical: true)
+            }
             Text("\(review.chapters.count) chapters · \(Set(review.chapters.flatMap { $0.hunks.map(\.file) }).count) files · +\(review.prInfo.additions) −\(review.prInfo.deletions)")
                 .font(.callout).foregroundStyle(Stage.gutter)
             HStack(spacing: 12) {
