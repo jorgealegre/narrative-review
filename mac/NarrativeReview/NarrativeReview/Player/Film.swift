@@ -18,7 +18,7 @@ struct FilmLine: Identifiable, Hashable, Sendable {
 }
 
 struct FilmFrame: Sendable {
-    enum Kind: Sendable, Hashable { case chapterCard, notesCard, fileCard, callout, code }
+    enum Kind: Sendable, Hashable { case chapterCard, notesCard, fileCard, callout, code, endCard }
     var kind: Kind
     var shot: Int                 // index into chapter.hunks (-1 on chapter-level cards)
     var lines: [FilmLine]
@@ -47,7 +47,10 @@ struct Film: Sendable {
         Int(max(floor, Double(words) / 280 * 60 + 0.6) / frameSeconds)
     }
 
-    static func make(chapter: Chapter, charsPerFrame: Int = 3) -> Film {
+    /// A shot never runs longer than this at 1x; big hunks type faster.
+    static let maxShotSeconds = 18.0
+
+    static func make(chapter: Chapter, isLast: Bool = false, summary: String = "") -> Film {
         var film = Film()
         let empty: [FilmLine] = []
         // 1. Chapter card: title and narrative, held for reading.
@@ -84,7 +87,11 @@ struct Film: Sendable {
                     film.frames.append(FilmFrame(kind: .callout, shot: i, lines: lines, caption: a, cursorLine: nil, progress: Double(k) / Double(hold)))
                 }
             }
-            film.frames.append(FilmFrame(kind: .code, shot: i, lines: lines, caption: "Before", cursorLine: nil, progress: 0))
+            // Hold on the file as it was, so the eye finds the place before anything moves.
+            let beforeHold = Int(0.8 / frameSeconds)
+            for k in 0..<beforeHold {
+                film.frames.append(FilmFrame(kind: .code, shot: i, lines: lines, caption: "Before", cursorLine: nil, progress: 0.02 * Double(k) / Double(beforeHold)))
+            }
             let removedIdx = lines.indices.filter { if case .context = lines[$0].state, lines[$0].newNumber == nil { return true } else { return false } }
             if !removedIdx.isEmpty {
                 for step in 1...6 {
@@ -96,6 +103,9 @@ struct Film: Sendable {
             }
             let addedIdx = lines.indices.filter { if case .adding = lines[$0].state { return true } else { return false } }
             let totalChars = max(1, addedIdx.reduce(0) { $0 + max(1, lines[$1].text.count) })
+            // Pace: 3 characters a frame feels like typing; past the budget, write faster rather than longer.
+            let budgetFrames = Int(maxShotSeconds / frameSeconds)
+            let charsPerFrame = max(3, Int((Double(totalChars) / Double(budgetFrames)).rounded(.up)))
             var typedChars = 0
             for j in addedIdx {
                 let text = lines[j].text
@@ -115,6 +125,13 @@ struct Film: Sendable {
             }
             film.shots.append(FilmShot(id: i, hunk: hunk, fileChanged: changed, oldStart: oldStart, newStart: newStart,
                                        firstFrame: first, frameCount: film.frames.count - first))
+        }
+        // The last chapter ends on a closing card: the whole story in one breath, and what to do next.
+        if isLast {
+            let hold = holdFrames(words: summary.split(separator: " ").count + 20, floor: 6)
+            for k in 0..<hold {
+                film.frames.append(FilmFrame(kind: .endCard, shot: -1, lines: empty, caption: summary, cursorLine: nil, progress: Double(k) / Double(hold)))
+            }
         }
         return film
     }

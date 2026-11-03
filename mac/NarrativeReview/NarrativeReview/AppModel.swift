@@ -29,7 +29,7 @@ final class AppModel {
     private var telling: String?
 
     // Navigation: a browser-style history so ⌘[ and ⌘] work the way people expect.
-    var path: [String] = [] { didSet { if !navigatingHistory { history.append(path); forward = [] } } }
+    var path: [String] = [] { didSet { selectedChapterID = nil; chapterProgress = 0; if !navigatingHistory { history.append(path); forward = [] } } }
     private var history: [[String]] = [[]]
     private var forward: [[String]] = []
     private var navigatingHistory = false
@@ -49,6 +49,18 @@ final class AppModel {
     }
 
     var openPR: PRRef? { path.last.flatMap { ref($0) } }
+
+    // The film's position, owned here so menus, the strip and the test hook can all see it.
+    var selectedChapterID: Chapter.ID?
+    var chapterProgress: Double = 0
+    var filmSeekToEnd = 0      // bumped by the test hook to jump to the closing card
+
+    func stepChapter(_ delta: Int) {
+        guard let pr = openPR, let r = reviews[pr.id], !r.chapters.isEmpty else { return }
+        let i = r.chapters.firstIndex { $0.id == selectedChapterID } ?? 0
+        let j = min(max(0, i + delta), r.chapters.count - 1)
+        selectedChapterID = r.chapters[j].id
+    }
 
     @ObservationIgnored @AppStorage("storyteller") var storytellerKind: StorytellerKind = .apple
     @ObservationIgnored @AppStorage("claudeModel") var claudeModelID: String = "claude-opus-5-5"

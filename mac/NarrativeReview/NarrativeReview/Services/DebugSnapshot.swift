@@ -20,6 +20,16 @@ enum DebugSnapshot {
                     model.path = [lines[1]]
                     try? await Task.sleep(for: .seconds(2.5))
                 }
+                if lines.count > 2, lines[2].hasPrefix("chapter:"), let n = Int(lines[2].dropFirst(8)), let pr = model.path.last, let r = model.reviews[pr] {
+                    model.selectedChapterID = r.chapters[safe: n]?.id
+                    try? await Task.sleep(for: .seconds(1.5))
+                }
+                if lines.count > 2, lines[2] == "end", let pr = model.path.last, let r = model.reviews[pr] {
+                    model.selectedChapterID = r.chapters.last?.id
+                    try? await Task.sleep(for: .seconds(1.5))
+                    model.filmSeekToEnd += 1
+                    try? await Task.sleep(for: .seconds(1.5))
+                }
                 if lines.count > 2, lines[2].hasPrefix("tell"), let pr = model.path.last.flatMap({ model.ref($0) }) {
                     // "tell" uses the current brain; "tell:claude:claude-sonnet-5-5" picks one for this run.
                     let parts = lines[2].split(separator: ":").map(String.init)

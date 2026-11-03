@@ -5,8 +5,9 @@ import SwiftUI
 struct PRDetailView: View {
     @Environment(AppModel.self) private var model
     let ref: PRRef
-    @State private var selectedChapter: Chapter.ID?
     @State private var showInspector = false
+    @State private var replayToken = 0
+    private var selectedChapter: Chapter.ID? { model.selectedChapterID }
 
     var body: some View {
         let review = model.reviews[ref.id]
@@ -16,11 +17,18 @@ struct PRDetailView: View {
             if let review, !review.chapters.isEmpty {
                 let i = review.chapters.firstIndex { $0.id == selectedChapter } ?? 0
                 let ch = review.chapters[i]
-                ChapterPlayerView(review: review, chapter: ch, chapterIndex: i, chapterCount: review.chapters.count,
-                                  onChapterEnd: { if i + 1 < review.chapters.count { select(review.chapters[i + 1].id) } },
-                                  onChapterBack: { if i > 0 { select(review.chapters[i - 1].id) } })
-                    .id(ch.id)
-                ChapterStrip(review: review, current: i) { select($0) }
+                ZStack {
+                    ChapterPlayerView(review: review, chapter: ch, chapterIndex: i, chapterCount: review.chapters.count,
+                                      onChapterEnd: { if i + 1 < review.chapters.count { select(review.chapters[i + 1].id) } },
+                                      onChapterBack: { if i > 0 { select(review.chapters[i - 1].id) } },
+                                      onReplay: { select(review.chapters[0].id, replay: true) },
+                                      onNextPR: { model.stepQueue(1) })
+                        .id(ch.id + (replayToken == 0 ? "" : "-\(replayToken)"))
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                removal: .move(edge: .leading).combined(with: .opacity)))
+                }
+                .clipped()
+                ChapterStrip(review: review, current: i, progress: model.chapterProgress) { select($0) }
             } else if let busy {
                 WritingScreen(ref: ref, progress: busy)
             } else if let err = model.errors[ref.id] {
@@ -60,7 +68,9 @@ struct PRDetailView: View {
         .onKeyPress(.escape) { model.path = []; return .handled }
     }
 
-    private func select(_ id: Chapter.ID) { withAnimation(.easeInOut(duration: 0.3)) { selectedChapter = id } }
+    private func select(_ id: Chapter.ID, replay: Bool = false) {
+        withAnimation(.easeInOut(duration: 0.45)) { model.selectedChapterID = id; if replay { replayToken += 1 } }
+    }
 }
 
 /// One line that says everything about the PR before the film starts.
@@ -138,6 +148,7 @@ struct WritingScreen: View {
 struct ChapterStrip: View {
     let review: NarrativeReview
     let current: Int
+    var progress: Double = 0
     let select: (Chapter.ID) -> Void
 
     var body: some View {
@@ -163,6 +174,17 @@ struct ChapterStrip: View {
                             .frame(width: 220, alignment: .topLeading)
                             .background(i == current ? Theme.elevated : Theme.surface, in: RoundedRectangle(cornerRadius: 10))
                             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(i == current ? Theme.accent.opacity(0.6) : Theme.line, lineWidth: 1))
+                            .overlay(alignment: .bottomLeading) {
+                                if i == current {
+                                    GeometryReader { g in
+                                        Capsule().fill(Theme.accent).frame(width: max(0, g.size.width * progress), height: 3)
+                                            .frame(maxHeight: .infinity, alignment: .bottom)
+                                    }
+                                    .padding(.horizontal, 8).padding(.bottom, 5)
+                                }
+                            }
+                            .scaleEffect(i == current ? 1.0 : 0.97)
+                            .animation(.spring(duration: 0.35), value: current)
                         }
                         .buttonStyle(.plain)
                         .id(ch.id)

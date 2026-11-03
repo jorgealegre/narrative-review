@@ -47,6 +47,8 @@ struct NarrativeReviewApp: App {
                     Button(p?.name ?? "All platforms") { model.platformFilter = p }.keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
                 }
                 Divider()
+                Button("Next Chapter") { model.stepChapter(1) }.keyboardShortcut(.downArrow, modifiers: .command).disabled(model.openPR == nil)
+                Button("Previous Chapter") { model.stepChapter(-1) }.keyboardShortcut(.upArrow, modifiers: .command).disabled(model.openPR == nil)
                 Button("Next PR in Queue") { model.stepQueue(1) }.keyboardShortcut(.downArrow, modifiers: .option)
                 Button("Previous PR in Queue") { model.stepQueue(-1) }.keyboardShortcut(.upArrow, modifiers: .option)
                 Button("Copy Link") {

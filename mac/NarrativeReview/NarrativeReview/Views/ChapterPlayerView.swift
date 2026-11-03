@@ -10,6 +10,8 @@ struct ChapterPlayerView: View {
     let chapterCount: Int
     var onChapterEnd: () -> Void = {}
     var onChapterBack: () -> Void = {}
+    var onReplay: () -> Void = {}
+    var onNextPR: () -> Void = {}
     @State private var player = FilmPlayer()
     @FocusState private var focused: Bool
 
@@ -34,6 +36,9 @@ struct ChapterPlayerView: View {
                             CodeStage(frame: frame, shot: shot, showCallout: frame.kind == .callout)
                                 .transition(.opacity)
                         }
+                    case .endCard:
+                        EndCard(review: review, progress: frame.progress, onReplay: onReplay, onNextPR: onNextPR)
+                            .transition(.opacity.combined(with: .scale(scale: 1.02)))
                     }
                 } else {
                     ContentUnavailableView("No hunks in this chapter", systemImage: "doc").foregroundStyle(Stage.text)
@@ -62,9 +67,18 @@ struct ChapterPlayerView: View {
         .onKeyPress(characters: .init(charactersIn: "1234")) { press in
             player.speed = [1.0, 0.5, 1.0, 1.5, 2.5][Int(press.characters) ?? 1]; return .handled
         }
-        .onAppear { player.load(Film.make(chapter: chapter)); player.play(); focused = true }
+        .onAppear {
+            player.load(Film.make(chapter: chapter, isLast: chapterIndex == chapterCount - 1, summary: review.summary))
+            player.play(); focused = true
+        }
+        .onChange(of: model.filmSeekToEnd) { _, _ in
+            if let last = player.film.frames.lastIndex(where: { $0.kind != .endCard }) { player.seek(toFrame: last + 1) }
+        }
+        .onChange(of: player.frameIndex) { _, i in
+            model.chapterProgress = player.film.frames.isEmpty ? 0 : Double(i) / Double(max(1, player.film.frames.count - 1))
+        }
         .onChange(of: player.finished) { _, done in
-            if done, player.autoAdvance { Task { try? await Task.sleep(for: .seconds(0.6)); onChapterEnd() } }
+            if done, player.autoAdvance, chapterIndex + 1 < chapterCount { Task { try? await Task.sleep(for: .seconds(0.4)); onChapterEnd() } }
         }
     }
 }
@@ -144,6 +158,40 @@ struct FileCard: View {
     }
 }
 
+/// After the last chapter: the story in one breath, and the three things to do next.
+struct EndCard: View {
+    let review: NarrativeReview
+    let progress: Double
+    let onReplay: () -> Void
+    let onNextPR: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Spacer()
+            Text("THE END").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(Stage.accent)
+            Text(review.title).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(Stage.textBright)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(review.summary).font(.system(size: 19)).lineSpacing(5).foregroundStyle(Stage.text).fixedSize(horizontal: false, vertical: true)
+            Text("\(review.chapters.count) chapters · \(Set(review.chapters.flatMap { $0.hunks.map(\.file) }).count) files · +\(review.prInfo.additions) −\(review.prInfo.deletions)")
+                .font(.callout).foregroundStyle(Stage.gutter)
+            HStack(spacing: 12) {
+                Button { onReplay() } label: { Label("Watch again", systemImage: "arrow.counterclockwise") }
+                Button { onNextPR() } label: { Label("Next in queue", systemImage: "forward.fill") }
+                    .keyboardShortcut(.return, modifiers: [])
+                Link(destination: URL(string: "https://github.com/\(review.prInfo.owner)/\(review.prInfo.repo)/pull/\(review.prInfo.number)")!) {
+                    Label("Review on GitHub", systemImage: "arrow.up.right.square")
+                }
+            }
+            .buttonStyle(.bordered).controlSize(.large).tint(Stage.accent)
+            Spacer()
+            HoldBar(progress: progress)
+        }
+        .padding(.horizontal, 72).padding(.vertical, 40)
+        .frame(maxWidth: 1000, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 struct HoldBar: View {
     let progress: Double
     var body: some View {
@@ -188,7 +236,8 @@ struct CodeStage: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(frame.lines) { line in
-                            FilmLineView(line: line, language: lang, isCursor: frame.cursorLine == line.id).id(line.id)
+                            FilmLineView(line: line, language: lang, isCursor: frame.cursorLine == line.id,
+                                         distance: frame.cursorLine.map { abs($0 - line.id) } ?? 0).id(line.id)
                         }
                     }
                     .padding(.vertical, 14)
@@ -210,6 +259,7 @@ struct FilmLineView: View {
     let line: FilmLine
     let language: CodeLanguage
     let isCursor: Bool
+    var distance: Int = 0
 
     var body: some View {
         let (bg, opacity, strike, hidden): (Color, Double, Bool, Bool) = {
@@ -235,11 +285,13 @@ struct FilmLineView: View {
                     Rectangle().fill(Stage.textBright).frame(width: 2, height: 17).padding(.leading, 1)
                 }
             }
-            .opacity(opacity)
+            .opacity(opacity * (distance > 14 ? 0.55 : distance > 7 ? 0.8 : 1))
             .padding(.trailing, 20).padding(.vertical, 1.5)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(bg)
+            .overlay(alignment: .leading) { if isCursor { Rectangle().fill(Stage.accent).frame(width: 3) } }
             .animation(.linear(duration: 0.1), value: line.state)
+            .animation(.easeOut(duration: 0.25), value: distance > 7)
         }
     }
 }
@@ -322,6 +374,10 @@ final class FilmPlayer {
 
     func pause() { isPlaying = false; task?.cancel(); task = nil }
     func toggle() { isPlaying ? pause() : play() }
+
+    func seek(toFrame i: Int) {
+        pause(); frameIndex = min(max(0, i), max(film.frames.count - 1, 0)); play()
+    }
 
     func seek(toShot i: Int) {
         guard let s = film.shots[safe: i] else { return }
