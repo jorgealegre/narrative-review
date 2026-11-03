@@ -37,6 +37,20 @@ statements contradict the code. Not good enough as the default story. Keep it fo
 labeled draft pre-pass. The real story needs Claude (API key in Settings). Sonnet 5.5 and Opus 5.5 are untested
 until a key exists.
 
+## Session 3 (2026-11-03)
+- Home is a board: columns Fix / Answer / Review / Merge / In review / Watching, platform filter chips (⌘1-7), avatars,
+  one checks pill, friction pill, conversation brief and the open ask on every card (`Services/Conversation.swift`,
+  on device, cached in conversations.json). Each column scrolls on its own.
+- Detail: the story is told on open (no button), plays on its own; marquee on top, chapter strip below, ⌘I details
+  (a sheet, not `.inspector`: the inspector hid the window from the snapshot hook). Esc goes home. ⌥↑↓ walks the queue.
+- Secrets moved from the Keychain to `~/Library/Application Support/NarrativeReview/secrets/` (mode 600): every
+  rebuild of an unsigned app is a new app to the Keychain and it prompted each time. A local signing certificate
+  would be the proper fix; creating one is blocked for the agent, Jorge can do it in Keychain Access (Certificate
+  Assistant, type Code Signing, name "Narrative Review Dev") and then set CODE_SIGN_IDENTITY to it.
+- Claude key: still none that works. Jorge's console account cannot create keys (no Developer role); the Action's key
+  is a GitHub secret and cannot be read back. Needs the Citizen console admin.
+- Snapshot script now lives in `mac/tools/snap.sh`.
+
 ## Open
 - **Push**: the branch `mac-app` is committed locally and not pushed (the agent's push was blocked by the permission
   classifier). Jorge runs `git -C ~/Developer/Citizen/narrative-review push -u origin mac-app`.

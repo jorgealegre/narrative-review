@@ -34,6 +34,7 @@ enum DebugSnapshot {
                 }
                 let board = model.board.map { "\($0.0.rawValue): " + $0.1.map { "\($0.pr.repo)#\($0.pr.number) [\($0.urgency)] \($0.reason)" }.joined(separator: " | ") }.joined(separator: "\n")
                 let state = """
+                window: \({ let w = NSApp.windows.filter({ $0.isVisible && $0.frame.width > 400 }).max(by: { $0.frame.width < $1.frame.width }); return w.map { "\(Int($0.frame.width))x\(Int($0.frame.height)) content \(Int($0.contentView?.bounds.width ?? 0))x\(Int($0.contentView?.bounds.height ?? 0)) fullscreen \($0.styleMask.contains(.fullScreen))" } ?? "none" }())
                 inbox: \(model.prs.count) error: \(model.inboxError ?? "none") loading: \(model.isLoadingInbox) viewer: \(model.viewerLogin ?? "?")
                 reviews: \(model.reviews.keys.sorted())
                 gists: \(model.gistText.count) key: \({ let k = model.claudeKey; return k.isEmpty ? "none" : "\(k.prefix(10))… len \(k.count)" }())

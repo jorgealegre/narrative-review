@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// One check run or commit status on the head commit.
 struct CheckItem: Codable, Hashable, Sendable, Identifiable {
@@ -181,4 +182,13 @@ enum Triage {
             return items.isEmpty ? nil : (bucket, items)
         }
     }
+}
+
+struct BoardColumnModel {
+    var title: String
+    var symbol: String
+    var color: Color
+    var emptyText: String
+    var items: [TriagedPR]
+    var compact = false
 }

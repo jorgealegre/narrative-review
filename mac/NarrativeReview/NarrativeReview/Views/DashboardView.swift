@@ -1,227 +1,219 @@
 import SwiftUI
 
-/// Home. Not a list of PRs: a list of reasons something needs you, biggest first.
+/// Home: a board. One column per kind of attention, biggest first. Cards tell you the state of the PR
+/// without opening it: the gist, why it is here, what happened in the conversation, who is waiting.
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
-                greeting
-                if let err = model.inboxError {
-                    Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-                }
-                ForEach(model.board, id: \.0) { bucket, items in
-                    BucketSection(bucket: bucket, items: items)
-                }
-                if !model.archivedStories.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Stories you can still watch").font(.title3.weight(.semibold)).foregroundStyle(.secondary)
-                        ForEach(model.archivedStories) { r in
-                            Button { model.path.append(r.id) } label: {
-                                HStack {
-                                    Image(systemName: "book.closed.fill").foregroundStyle(Color.accentColor)
-                                    Text(r.title)
-                                    Spacer()
-                                    Text("\(r.prInfo.repo) #\(r.prInfo.number) · \(r.chapters.count) chapters").foregroundStyle(.secondary)
-                                }
-                                .padding(12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+        @Bindable var model = model
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            if let err = model.inboxError {
+                Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(Theme.warn).padding(.horizontal, 28).padding(.bottom, 8)
             }
-            .padding(.horizontal, 36).padding(.vertical, 28)
-            .frame(maxWidth: 1100, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    ForEach(model.columns, id: \.title) { col in
+                        BoardColumn(column: col)
+                    }
+                    if !model.archivedStories.isEmpty { archivedColumn }
+                }
+                .padding(.horizontal, 28)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxHeight: .infinity)
         }
+        .background(Theme.background)
         .navigationTitle("Narrative Review")
         .overlay {
-            if model.prs.isEmpty && model.isLoadingInbox { ProgressView("Asking GitHub…") }
+            if model.prs.isEmpty && model.lastRefreshed == nil { ProgressView("Asking GitHub…").tint(Theme.accent) }
         }
     }
 
-    private var greeting: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            let hour = Calendar.current.component(.hour, from: Date())
-            let name = model.viewerLogin ?? "there"
-            Text("\(hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"), \(name).")
-                .font(.system(size: 30, weight: .bold))
-            if model.prs.isEmpty && model.lastRefreshed == nil {
-                Text("Loading your pull requests…").font(.title3).foregroundStyle(.secondary)
-            } else if model.prs.isEmpty {
-                Text("No open PRs involve you in \(model.inboxScope.isEmpty ? "any repo" : model.inboxScope). Enjoy it.").font(.title3).foregroundStyle(.secondary)
-            } else {
-                Text(model.needsYouCount == 0 ? "Nothing needs you right now. \(model.prs.count) open PRs involve you."
-                     : "\(model.needsYouCount) thing\(model.needsYouCount == 1 ? "" : "s") need\(model.needsYouCount == 1 ? "s" : "") you, out of \(model.prs.count) open PRs that involve you.")
-                    .font(.title3).foregroundStyle(.secondary)
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    let hour = Calendar.current.component(.hour, from: Date())
+                    Text("\(hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"), \(model.viewerLogin ?? "there").")
+                        .font(Theme.display(30)).foregroundStyle(Theme.text)
+                    Text(subtitle).font(.title3).foregroundStyle(Theme.muted)
+                }
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                FilterChip(title: "All", count: model.prs.count, color: Theme.muted, selected: model.platformFilter == nil) { model.platformFilter = nil }
+                ForEach(model.platformsPresent, id: \.self) { p in
+                    FilterChip(title: p.name, count: model.prs.filter { Platform.of(repo: $0.repo) == p }.count, color: p.color,
+                               symbol: p.symbol, selected: model.platformFilter == p) { model.platformFilter = model.platformFilter == p ? nil : p }
+                }
+                Spacer()
+                Text("⌘1-\(min(model.platformsPresent.count + 1, 7)) filter · ↵ open · ⌥↑↓ walk the queue").font(.caption).foregroundStyle(Theme.faint)
             }
         }
+        .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 18)
+    }
+
+    private var subtitle: String {
+        if model.prs.isEmpty && model.lastRefreshed == nil { return "Loading your pull requests…" }
+        if model.prs.isEmpty { return "No open PRs involve you. Enjoy it." }
+        let n = model.needsYouCount
+        return n == 0 ? "Nothing needs you right now. \(model.prs.count) open PRs involve you."
+                      : "\(n) thing\(n == 1 ? "" : "s") need\(n == 1 ? "s" : "") you, out of \(model.prs.count) open PRs that involve you."
+    }
+
+    private var archivedColumn: some View {
+        ScrollView(.vertical) { VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "film.stack").foregroundStyle(Theme.faint)
+                Text("Still watchable").font(Theme.headline(15)).foregroundStyle(Theme.muted)
+            }
+            ForEach(model.archivedStories) { r in
+                Button { model.path.append(r.id) } label: {
+                    HStack(spacing: 10) {
+                        PlatformBadge(repo: r.prInfo.repo, compact: true)
+                        Text(r.title).font(.callout).foregroundStyle(Theme.text).lineLimit(2)
+                        Spacer()
+                        Text("\(max(1, r.estimatedWatchSeconds / 60)) min").font(.caption).foregroundStyle(Theme.faint)
+                    }
+                    .padding(12).background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+        } }
+        .scrollIndicators(.hidden)
+        .frame(width: 300)
     }
 }
 
-struct BucketSection: View {
-    let bucket: Attention
-    let items: [TriagedPR]
+struct FilterChip: View {
+    let title: String
+    let count: Int
+    let color: Color
+    var symbol: String? = nil
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .semibold)) }
+                Text(title).font(.callout.weight(.medium))
+                Text("\(count)").font(.caption.monospacedDigit()).opacity(0.7)
+            }
+            .foregroundStyle(selected ? Theme.background : color)
+            .padding(.horizontal, 11).padding(.vertical, 6)
+            .background(selected ? color : color.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct BoardColumn: View {
+    let column: BoardColumnModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: bucket.symbol).foregroundStyle(tint)
-                Text(bucket.rawValue).font(.title3.weight(.semibold))
-                Text("\(items.count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(.quaternary, in: Capsule())
-            }
-            if bucket == .watching || bucket == .drafts {
-                ForEach(items) { t in CompactPRRow(triaged: t) }
-            } else {
-                ForEach(items) { t in PRCard(triaged: t, tint: tint) }
-            }
-        }
-    }
-
-    private var tint: Color {
-        switch bucket {
-        case .readyToMerge: return .green
-        case .fixChecks: return .red
-        case .answerReviewer, .youBlockThem: return .orange
-        case .reviewRequested: return .blue
-        case .yoursInReview: return .secondary
-        case .watching, .drafts: return .gray
-        }
-    }
-}
-
-/// One line per PR for the quiet buckets, so the ten things you already approved do not bury the three that need you.
-struct CompactPRRow: View {
-    @Environment(AppModel.self) private var model
-    let triaged: TriagedPR
-
-    var body: some View {
-        let pr = triaged.pr
-        Button { model.path.append(pr.id) } label: {
-            HStack(spacing: 10) {
-                PlatformBadge(repo: pr.repo, compact: true)
-                Text(model.gistText[pr.id]?.sentence ?? pr.title).lineLimit(1)
+                Image(systemName: column.symbol).foregroundStyle(column.color)
+                Text(column.title).font(Theme.headline(15)).foregroundStyle(Theme.text)
+                Text("\(column.items.count)").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 7).padding(.vertical, 2).background(Theme.elevated, in: Capsule())
                 Spacer()
-                Text("\(pr.author) · \(pr.repo) #\(pr.number)").foregroundStyle(.secondary).lineLimit(1)
-                Text(PRCard.relative(pr.updatedAt)).foregroundStyle(.tertiary).frame(width: 70, alignment: .trailing)
             }
-            .font(.callout)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 4)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if column.items.isEmpty {
+                        Text(column.emptyText).font(.callout).foregroundStyle(Theme.faint).padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Theme.surface.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    ForEach(column.items) { t in BoardCard(triaged: t, tint: column.color, compact: column.compact) }
+                }
+                .padding(.bottom, 20)
+            }
+            .scrollIndicators(.hidden)
         }
-        .buttonStyle(.plain)
+        .frame(width: column.compact ? 300 : 380)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
-struct PRCard: View {
+struct BoardCard: View {
     @Environment(AppModel.self) private var model
     let triaged: TriagedPR
     let tint: Color
+    var compact = false
 
     var body: some View {
         let pr = triaged.pr
-        let _ = { if !pr.failedChecks.isEmpty { model.explainFailures(pr) } }()
         let gist = model.gistText[pr.id]
         let story = model.reviews[pr.id]
         let busy = model.progress[pr.id]
+        let brief = model.briefs[pr.id]
+        let waitingOn = Array(Set(pr.requestedReviewers + pr.humanReviewers)).sorted()
         Button { model.path.append(pr.id) } label: {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(gist?.sentence ?? pr.title)
-                        .font(.system(size: 17, weight: .semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(triaged.reason).font(.callout).foregroundStyle(tint)
-                    if pr.mergeStateStatus == "BEHIND", pr.author == model.viewerLogin {
-                        HStack(spacing: 8) {
-                            Button("Update branch") { model.updateBranch(pr) }.buttonStyle(.bordered).controlSize(.small)
-                            if let n = model.notes[pr.id] { Text(n).font(.caption).foregroundStyle(.secondary) }
-                        }
-                    }
-                    if let note = pr.failedChecks.first.flatMap({ model.failureNotes["\(pr.id)|\($0.name)"] }) {
-                        Label(note, systemImage: "lightbulb").font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    }
-                    HStack(spacing: 10) {
-                        PlatformBadge(repo: pr.repo)
-                        Text("#\(pr.number)")
-                        Text("·").foregroundStyle(.tertiary)
-                        people(pr)
-                        if gist == nil { Text("· \(pr.title)").lineLimit(1) }
-                        Spacer(minLength: 0)
-                    }
-                    .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    PlatformBadge(repo: pr.repo, compact: true)
+                    Text("#\(pr.number)").font(.caption.monospacedDigit()).foregroundStyle(Theme.faint)
+                    Spacer()
+                    Text(PRCardTime.relative(pr.updatedAt)).font(.caption).foregroundStyle(Theme.faint)
                 }
-                Spacer(minLength: 12)
-                VStack(alignment: .trailing, spacing: 6) {
-                    checks(pr)
-                    HStack(spacing: 6) {
-                        heat(pr.heat)
-                        if let story {
-                            Label(story.isDraft ? "draft · watch \(max(1, story.estimatedWatchSeconds / 60)) min" : "watch \(max(1, story.estimatedWatchSeconds / 60)) min",
-                                  systemImage: "play.circle.fill").foregroundStyle(Color.accentColor)
-                        } else if let busy {
-                            Label(busy.step == "Queued" ? "queued" : "writing…", systemImage: "hourglass")
-                        } else {
-                            Label("no story yet", systemImage: "book.closed").foregroundStyle(.tertiary)
-                        }
+                Text(gist?.sentence ?? pr.title)
+                    .font(Theme.headline(compact ? 14 : 16)).foregroundStyle(Theme.text)
+                    .fixedSize(horizontal: false, vertical: true).lineLimit(3)
+                if !compact || triaged.attention != .watching {
+                    Text(triaged.reason).font(.callout).foregroundStyle(tint).fixedSize(horizontal: false, vertical: true)
+                }
+                if !compact, let brief, !brief.summary.isEmpty {
+                    Text(brief.summary).font(.callout).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true).lineLimit(4)
+                    if let ask = brief.asks.first {
+                        Label(ask, systemImage: "hand.point.right.fill").font(.callout).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true).lineLimit(2)
                     }
-                    .font(.caption)
-                    Text(Self.relative(pr.updatedAt)).font(.caption).foregroundStyle(.tertiary)
+                }
+                if !compact, pr.mergeStateStatus == "BEHIND", pr.author == model.viewerLogin {
+                    HStack(spacing: 8) {
+                        Button("Update branch") { model.updateBranch(pr) }.buttonStyle(.bordered).controlSize(.small)
+                        if let n = model.notes[pr.id] { Text(n).font(.caption).foregroundStyle(Theme.muted) }
+                    }
+                }
+                if !compact, let note = pr.failedChecks.first.flatMap({ model.failureNotes["\(pr.id)|\($0.name)"] }) {
+                    Label(note, systemImage: "lightbulb").font(.caption).foregroundStyle(Theme.muted).lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                    PeopleRow(author: pr.author, others: waitingOn, size: 20)
+                    Spacer()
+                    ChecksPill(pr: pr)
+                }
+                HStack(spacing: 8) {
+                    if let brief { FrictionPill(friction: brief.friction, why: compact ? "" : brief.frictionWhy) }
+                    Spacer()
+                    if let story {
+                        Label(story.isDraft ? "draft · \(max(1, story.estimatedWatchSeconds / 60)) min" : "watch \(max(1, story.estimatedWatchSeconds / 60)) min",
+                              systemImage: "play.circle.fill").font(.caption).foregroundStyle(Theme.accent)
+                    } else if let busy {
+                        Label(busy.step == "Queued" ? "queued" : "writing the story…", systemImage: "hourglass").font(.caption).foregroundStyle(Theme.muted)
+                    } else {
+                        Label("story on open", systemImage: "play.circle").font(.caption).foregroundStyle(Theme.faint)
+                    }
                 }
             }
             .padding(14)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(tint.opacity(0.35), lineWidth: 1))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line, lineWidth: 1))
             .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2).fill(Platform.of(repo: pr.repo).color).frame(width: 4).padding(.vertical, 10).padding(.leading, 1)
+                RoundedRectangle(cornerRadius: 2).fill(Platform.of(repo: pr.repo).color).frame(width: 3).padding(.vertical, 12).padding(.leading, 1)
             }
         }
         .buttonStyle(.plain)
+        .task(id: pr.updatedAt) { if !pr.failedChecks.isEmpty { model.explainFailures(pr) } }
     }
+}
 
-    private func people(_ pr: PullRequest) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "person.fill")
-            Text(pr.author)
-            let others = Array(Set(pr.requestedReviewers + pr.humanReviewers)).sorted().prefix(3)
-            if !others.isEmpty {
-                Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                Text(others.joined(separator: ", "))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func checks(_ pr: PullRequest) -> some View {
-        let failed = pr.failedChecks.count, pending = pr.pendingChecks.count, total = pr.checks.count
-        if total == 0 {
-            Text("no checks").font(.caption).foregroundStyle(.tertiary)
-        } else if failed > 0 {
-            VStack(alignment: .trailing, spacing: 2) {
-                ForEach(pr.failedChecks.prefix(3)) { c in
-                    Label(c.name, systemImage: "xmark.circle.fill").font(.caption).foregroundStyle(.red).lineLimit(1)
-                }
-                if failed > 3 { Text("+\(failed - 3) more red").font(.caption).foregroundStyle(.red) }
-                Text("\(total - failed - pending) of \(total) green").font(.caption2).foregroundStyle(.tertiary)
-            }
-        } else if pending > 0 {
-            Label("\(pending) checks running", systemImage: "circle.dotted").font(.caption).foregroundStyle(.orange)
-        } else {
-            Label("checks green", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
-        }
-    }
-
-    @ViewBuilder
-    private func heat(_ h: PullRequest.Heat) -> some View {
-        switch h {
-        case .feather: Label("quiet", systemImage: "leaf").foregroundStyle(.secondary)
-        case .warm: Label("some back and forth", systemImage: "flame").foregroundStyle(.orange)
-        case .spicy: Label("spicy", systemImage: "flame.fill").foregroundStyle(.red)
-        }
-    }
-
+enum PRCardTime {
     static func relative(_ d: Date) -> String {
         let f = RelativeDateTimeFormatter(); f.unitsStyle = .short
         return f.localizedString(for: d, relativeTo: Date())

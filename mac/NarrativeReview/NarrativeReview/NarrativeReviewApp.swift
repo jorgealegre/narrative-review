@@ -43,6 +43,10 @@ struct NarrativeReviewApp: App {
                     .disabled(!model.canGoForward)
                 Button("Home") { model.path = [] }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
+                ForEach(Array(([nil] + model.platformsPresent).prefix(7).enumerated()), id: \.offset) { i, p in
+                    Button(p?.name ?? "All platforms") { model.platformFilter = p }.keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
+                }
+                Divider()
                 Button("Next PR in Queue") { model.stepQueue(1) }.keyboardShortcut(.downArrow, modifiers: .option)
                 Button("Previous PR in Queue") { model.stepQueue(-1) }.keyboardShortcut(.upArrow, modifiers: .option)
                 Button("Copy Link") {

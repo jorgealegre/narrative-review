@@ -14,7 +14,7 @@ struct StatusBar: View {
             }
             if let t = model.lastRefreshed {
                 Divider().frame(height: 14)
-                Text(model.isLoadingInbox ? "Checking GitHub…" : "GitHub checked \(Date().timeIntervalSince(t) < 60 ? "just now" : PRCard.relative(t)), every \(model.pollMinutes) min")
+                Text(model.isLoadingInbox ? "Checking GitHub…" : "GitHub checked \(Date().timeIntervalSince(t) < 60 ? "just now" : PRCardTime.relative(t)), every \(model.pollMinutes) min")
             }
             if let (id, p) = model.progress.first(where: { $0.value.step != "Queued" }) ?? model.progress.first {
                 Divider().frame(height: 14)

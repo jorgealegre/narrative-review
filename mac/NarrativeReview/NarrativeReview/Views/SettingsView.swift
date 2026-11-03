@@ -28,7 +28,7 @@ struct SettingsView: View {
                     Label("This does not look like a full secret key (about 108 characters, starts with sk-ant-api03-). The console list only shows a masked hint; the secret is shown once when you create a key.", systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
-                Text("Stored in your login Keychain, never on disk, sent only to api.anthropic.com. Create a key with its own spend limit at platform.claude.com.")
+                Text("Stored in a file only your user can read, like the GitHub CLI token; sent only to api.anthropic.com. Create a key with its own spend limit at platform.claude.com.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Inbox") {

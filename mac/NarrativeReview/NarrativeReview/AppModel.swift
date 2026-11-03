@@ -105,6 +105,37 @@ final class AppModel {
     // MARK: Inbox
 
     var board: [(Attention, [TriagedPR])] { Triage.board(prs, viewer: viewerLogin ?? "") }
+
+    var platformFilter: Platform? = nil
+    var platformsPresent: [Platform] { Platform.allCases.filter { p in prs.contains { Platform.of(repo: $0.repo) == p } } }
+    var filteredBoard: [(Attention, [TriagedPR])] {
+        guard let f = platformFilter else { return board }
+        return board.compactMap { b in let items = b.1.filter { Platform.of(repo: $0.pr.repo) == f }; return items.isEmpty ? nil : (b.0, items) }
+    }
+
+    /// The board's columns: a kind of attention each, biggest first.
+    var columns: [BoardColumnModel] {
+        func items(_ kinds: [Attention]) -> [TriagedPR] { filteredBoard.filter { kinds.contains($0.0) }.flatMap(\.1).sorted { $0.urgency > $1.urgency } }
+        return [
+            BoardColumnModel(title: "Fix", symbol: "wrench.and.screwdriver.fill", color: Theme.bad, emptyText: "Nothing of yours is red or stuck.", items: items([.fixChecks])),
+            BoardColumnModel(title: "Answer", symbol: "bubble.left.and.exclamationmark.bubble.right.fill", color: Theme.warn, emptyText: "No reviewer is waiting on you.", items: items([.answerReviewer, .youBlockThem])),
+            BoardColumnModel(title: "Review", symbol: "eye.fill", color: Theme.accent, emptyText: "No review requests.", items: items([.reviewRequested])),
+            BoardColumnModel(title: "Merge", symbol: "checkmark.seal.fill", color: Theme.good, emptyText: "Nothing approved yet.", items: items([.readyToMerge])),
+            BoardColumnModel(title: "In review", symbol: "clock.fill", color: Theme.muted, emptyText: "None of yours in review.", items: items([.yoursInReview])),
+            BoardColumnModel(title: "Watching", symbol: "at", color: Theme.faint, emptyText: "", items: items([.watching, .drafts]), compact: true),
+        ].filter { !$0.items.isEmpty || !$0.compact }
+    }
+
+    // Conversation briefs: what happened in the thread, written on device after the gists.
+    let conversations = ConversationWriter()
+    var briefs: [String: ConversationBrief] = [:]
+
+    private func writeBriefs(for list: [PullRequest]) async {
+        for pr in list { if let b = await conversations.cached(pr) { briefs[pr.id] = b } }
+        for pr in list where briefs[pr.id]?.stamp != ISO8601DateFormatter().string(from: pr.updatedAt) {
+            if let b = await conversations.brief(for: pr, github: github) { briefs[pr.id] = b }
+        }
+    }
     var needsYouCount: Int {
         board.filter { [.readyToMerge, .fixChecks, .answerReviewer, .reviewRequested, .youBlockThem].contains($0.0) }.reduce(0) { $0 + $1.1.count }
     }
@@ -138,6 +169,7 @@ final class AppModel {
             log.notice("inbox loaded: \(list.count) PRs")
             Task {
                 await self.writeGists(for: list)      // gists first: they make the dashboard readable
+                await self.writeBriefs(for: list)
                 if self.autoTell, self.storytellerKind == .apple, self.appleAvailable { self.enqueueStaleStories() }
             }
         } catch {
@@ -229,7 +261,13 @@ final class AppModel {
         }
     }
 
-    /// Tell now, ahead of the queue (the user pressed the button).
+    /// Opening a PR with no story tells it at once, ahead of the queue. No button to press.
+    func openStoryIfNeeded(_ ref: PRRef) {
+        guard reviews[ref.id] == nil, progress[ref.id] == nil || progress[ref.id]?.step == "Queued" else { return }
+        tellStory(for: ref)
+    }
+
+    /// Tell now, ahead of the queue.
     func tellStory(for ref: PRRef) {
         errors[ref.id] = nil
         tellQueue.removeAll { $0 == ref.id }

@@ -133,6 +133,35 @@ actor GitHubService {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// The PR conversation in one GraphQL call: reviews, comments, threads, commits and review events.
+    func timeline(owner: String, repo: String, number: Int) async throws -> Data {
+        let query = """
+        query($owner: String!, $repo: String!, $number: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $number) {
+              author { __typename login }
+              reviews(last: 50) { nodes { author { __typename login } state body submittedAt } }
+              comments(last: 50) { nodes { author { __typename login } body createdAt } }
+              reviewThreads(last: 50) { nodes { isResolved isOutdated path
+                comments(first: 50) { nodes { author { __typename login } body createdAt } } } }
+              commits(last: 50) { nodes { commit { messageHeadline committedDate author { name user { __typename login } } } } }
+              timelineItems(last: 50, itemTypes: [REVIEW_REQUESTED_EVENT, READY_FOR_REVIEW_EVENT, HEAD_REF_FORCE_PUSHED_EVENT]) {
+                nodes {
+                  __typename
+                  ... on ReviewRequestedEvent { createdAt actor { __typename login }
+                    requestedReviewer { ... on User { login } ... on Team { name } ... on Bot { login } } }
+                  ... on ReadyForReviewEvent { createdAt actor { __typename login } }
+                  ... on HeadRefForcePushedEvent { createdAt actor { __typename login } }
+                }
+              }
+            }
+          }
+        }
+        """
+        let body: [String: Any] = ["query": query, "variables": ["owner": owner, "repo": repo, "number": number]]
+        return try await post("https://api.github.com/graphql", body: body)
+    }
+
     private func post(_ url: String, body: [String: Any]) async throws -> Data {
         let token = try await login()
         var req = URLRequest(url: URL(string: url)!)
